@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { loadFavorites, removeFavorite, updateFavorite } from "@/lib/favorites";
+import { removeFavorite, updateFavorite, useFavorites } from "@/lib/favorites";
 import { useLivePolling } from "@/lib/useLivePolling";
 import { DelayChip, OperatorBadge } from "@/components/Badges";
 import type { FavoriteRoute, JourneyOption } from "@/lib/types";
@@ -12,32 +12,16 @@ interface LiveResponse {
 }
 
 export function FavoritesClient() {
-  const [favorites, setFavorites] = useState<FavoriteRoute[]>([]);
-  const [ready, setReady] = useState(false);
+  // Dibaca langsung dari store (aman hidrasi, tidak perlu state/effect).
+  const favorites = useFavorites();
 
   const { data } = useLivePolling<LiveResponse>("/api/live", 15000);
-
-  useEffect(() => {
-    function reload() {
-      setFavorites(loadFavorites());
-    }
-    reload();
-    setReady(true);
-    window.addEventListener("raillive:favorites", reload);
-    window.addEventListener("storage", reload);
-    return () => {
-      window.removeEventListener("raillive:favorites", reload);
-      window.removeEventListener("storage", reload);
-    };
-  }, []);
 
   const delayByTrain = new Map((data?.trains ?? []).map((t) => [t.trainId, t]));
 
   return (
     <div className="space-y-6">
-      {!ready ? (
-        <p className="card p-8 text-center text-muted">Memuat…</p>
-      ) : favorites.length === 0 ? (
+      {favorites.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-3xl">⭐</p>
           <h2 className="mt-3 font-bold">Belum ada rute favorit</h2>
@@ -84,7 +68,6 @@ function FavoriteCard({
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     fetch(`/api/search?origin=${fav.origin}&destination=${fav.destination}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((json: { journeys: JourneyOption[] }) => {

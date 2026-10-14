@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { StationPicker } from "@/components/StationPicker";
 import { OperatorBadge, DelayChip } from "@/components/Badges";
-import { addFavorite, isFavorite } from "@/lib/favorites";
+import { addFavorite, useFavorites } from "@/lib/favorites";
 import { formatDuration } from "@/lib/time";
+import { useToday } from "@/lib/useLivePolling";
 import type { JourneyOption, Station } from "@/lib/types";
 
 interface SearchResponse {
@@ -19,22 +20,18 @@ interface SearchResponse {
 export function SearchClient({ stations }: { stations: Station[] }) {
   const [origin, setOrigin] = useState("GMR");
   const [destination, setDestination] = useState("SB");
-  const [date, setDate] = useState("");
+  const [dateInput, setDateInput] = useState("");
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    const t = new Date();
-    setDate(
-      `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`,
-    );
-  }, []);
+  // Tanggal default = hari ini (dihitung di klien, tanpa setState di effect).
+  const today = useToday();
+  const date = dateInput || today;
 
-  useEffect(() => {
-    setSaved(isFavorite(origin, destination));
-  }, [origin, destination]);
+  // Status favorit diturunkan dari store, bukan disalin ke state.
+  const favorites = useFavorites();
+  const saved = favorites.some((f) => f.origin === origin && f.destination === destination);
 
   async function runSearch() {
     if (origin === destination) {
@@ -76,7 +73,7 @@ export function SearchClient({ stations }: { stations: Station[] }) {
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => setDateInput(e.target.value)}
               className="w-full rounded-xl border border-border bg-surface px-3.5 py-3 outline-none focus:border-brand/60"
             />
           </div>
@@ -95,7 +92,6 @@ export function SearchClient({ stations }: { stations: Station[] }) {
           <button
             onClick={() => {
               addFavorite(origin, destination);
-              setSaved(true);
             }}
             className="rounded-lg border border-border px-3 py-1.5 text-xs transition hover:border-brand/50"
           >

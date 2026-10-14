@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLivePolling } from "@/lib/useLivePolling";
 import { computeBounds, project } from "@/lib/geo";
 import { LiveBadge, OperatorBadge } from "@/components/Badges";
 import { OPERATOR_META, type LiveStatus, type Operator, type Station, type Train } from "@/lib/types";
-import { formatDuration } from "@/lib/time";
 
 const W = 1000;
 const H = 720;
@@ -29,6 +28,14 @@ export function LiveMap({
   const [selected, setSelected] = useState<string | null>(initialTrain ?? null);
   const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("all");
   const [hover, setHover] = useState<string | null>(null);
+
+  // Sinkronkan pilihan bila URL berubah (pola resmi React: menyesuaikan state
+  // saat render, bukan di dalam effect — menghindari render berantai).
+  const [prevInitialTrain, setPrevInitialTrain] = useState(initialTrain);
+  if (initialTrain !== prevInitialTrain) {
+    setPrevInitialTrain(initialTrain);
+    if (initialTrain) setSelected(initialTrain);
+  }
 
   const { data, error, loading, lastUpdated, refresh } = useLivePolling<LiveResponse>(
     "/api/live",
@@ -63,11 +70,6 @@ export function LiveMap({
 
   const moving = liveTrains.filter((t) => t.status !== "not-started" && t.status !== "arrived");
   const selectedTrain = liveTrains.find((t) => t.trainId === selected) ?? null;
-
-  // Sorot rute kereta terpilih.
-  useEffect(() => {
-    if (initialTrain) setSelected(initialTrain);
-  }, [initialTrain]);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]">

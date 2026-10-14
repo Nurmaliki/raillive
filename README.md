@@ -112,8 +112,8 @@ src/
     ├── favorites.ts          # Penyimpanan favorit (localStorage)
     ├── useLivePolling.ts     # Hook polling real-time
     ├── data/
-    │   ├── stations.ts       # Dataset 36 stasiun
-    │   └── trains.ts         # Dataset 20 rute kereta
+    │   ├── stations.ts       # Dataset 37 stasiun
+    │   └── trains.ts         # Dataset 19 rute kereta
     └── providers/
         ├── types.ts          # Kontrak TrainDataProvider
         ├── mock.ts           # Provider simulasi
@@ -207,6 +207,12 @@ vercel --prod       # deploy ke produksi
   `src/lib/favorites.ts`.
 - **Peta tanpa API key.** Peta memakai proyeksi equirectangular sederhana ke
   SVG (`src/lib/geo.ts`), sehingga tidak perlu token Mapbox/Google Maps.
+- **Zona waktu WIB eksplisit.** Semua perhitungan jadwal memakai WIB (UTC+7)
+  melalui `src/lib/time.ts`, bukan jam lokal mesin. Ini penting karena Vercel
+  menjalankan server pada **UTC** — tanpa ini jadwal akan melenceng 7 jam.
+- **Kereta lintas tengah malam.** KA malam (mis. Bima, Gajayana) tetap terpantau
+  setelah lewat tengah malam karena mesin memeriksa instance keberangkatan
+  kemarin juga.
 
 ---
 

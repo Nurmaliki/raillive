@@ -194,7 +194,6 @@ export function computeLiveStatus(
   }
 
   const position = interpolatePosition(train, progress);
-  const totalKm = routeDistanceKm(train);
   // Kecepatan rata-rata wajar, dengan sedikit variasi halus.
   const wobble = Math.sin(nowMin / 3 + hashString(train.id) % 10) * 8;
   const speedKmh =

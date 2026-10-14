@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { StationPicker } from "@/components/StationPicker";
 import { OperatorBadge, StatusBadge } from "@/components/Badges";
-import { useLivePolling } from "@/lib/useLivePolling";
+import { useClock, useLivePolling } from "@/lib/useLivePolling";
 import type { Departure, Station } from "@/lib/types";
 
 interface DeparturesResponse {
@@ -15,13 +15,7 @@ interface DeparturesResponse {
 export function StationBoard({ stations }: { stations: Station[] }) {
   const [station, setStation] = useState("GMR");
   const [window_, setWindow] = useState(240);
-  const [now, setNow] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useClock();
 
   const path = useMemo(
     () => `/api/departures?station=${station}&window=${window_}`,
