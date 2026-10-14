@@ -195,16 +195,16 @@ export function LiveMap({
   }, [routes, focusKeys, stationByCode]);
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       {/* PETA */}
-      <div className="card overflow-hidden">
+      <div className="card min-w-0 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2 text-sm">
             <span className="pulse-dot" />
             <span className="font-semibold">{moving.length}</span>
             <span className="text-muted">kereta bergerak</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={operatorFilter}
               onChange={(e) => {

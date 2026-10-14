@@ -191,8 +191,10 @@ export function StationBoard({ stations }: { stations: Station[] }) {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+          <>
+            {/* Tabel untuk layar sedang ke atas */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted">
                   <th className="px-4 py-3 font-semibold">Jam</th>
@@ -252,7 +254,46 @@ export function StationBoard({ stations }: { stations: Station[] }) {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            {/* Daftar kartu untuk layar kecil (mobile) */}
+            <ul className="divide-y divide-border/60 sm:hidden">
+              {departures.map((d) => (
+                <li
+                  key={`${d.trainId}-${d.scheduled}`}
+                  className="flex items-start gap-3 px-4 py-3.5"
+                >
+                  <div className="w-16 shrink-0 text-center">
+                    <div className="tabular text-lg font-bold leading-tight">{d.actual}</div>
+                    {d.delayMin > 0 && (
+                      <div className="tabular text-[11px] text-muted line-through">{d.scheduled}</div>
+                    )}
+                    <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">
+                      Peron {d.platform}
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <OperatorBadge operator={d.operator} />
+                      {d.line && <LineBadge line={d.line} />}
+                    </div>
+                    <div className="mt-1 text-sm font-medium">{d.trainName}</div>
+                    <div className="text-[11px] text-muted">
+                      KA {d.trainNumber} · ke {d.destinationName} ({d.destination})
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <StatusBadge status={d.status} />
+                      {d.delayMin > 0 && (
+                        <span className="text-[11px] font-semibold text-red-400">
+                          +{d.delayMin} menit
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
