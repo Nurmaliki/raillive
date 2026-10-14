@@ -43,6 +43,24 @@ function statusFromDelay(delayMin: number): LiveStatusKind {
   return "delayed";
 }
 
+/**
+ * Nama kereta lengkap untuk daftar/UI: "<nama lin> · <Asal> → <Tujuan>"
+ * memakai NAMA STASIUN penuh (bukan kode) supaya mudah dibaca pengguna.
+ */
+export function fullTrainName(train: Train): string {
+  const lineName = train.name.split(" · ")[0];
+  const o = getStation(firstStop(train).stationCode);
+  const d = getStation(lastStop(train).stationCode);
+  const oName = o?.name ?? firstStop(train).stationCode;
+  const dName = d?.name ?? lastStop(train).stationCode;
+  return `${lineName} · ${oName} → ${dName}`;
+}
+
+/** Salinan kereta dengan `name` sudah memakai nama stasiun lengkap. */
+function withFullName(train: Train): Train {
+  return { ...train, name: fullTrainName(train) };
+}
+
 /** Total jarak rute sebuah kereta (km), dijumlahkan antar perhentian. */
 export function routeDistanceKm(train: Train): number {
   let total = 0;
@@ -119,7 +137,7 @@ export function computeLiveStatus(
   const base = {
     trainId: train.id,
     trainNumber: train.number,
-    trainName: train.name,
+    trainName: fullTrainName(train),
     operator: train.operator,
     line: train.line,
     origin: origin.stationCode,
@@ -282,7 +300,7 @@ export function departuresAt(
       out.push({
         trainId: train.id,
         trainNumber: train.number,
-        trainName: train.name,
+        trainName: fullTrainName(train),
         operator: train.operator,
         line: train.line,
         destination: destDef.stationCode,
@@ -348,7 +366,7 @@ function directJourneys(
     const live = computeLiveStatus(train, now, dateKey);
 
     results.push({
-      train,
+      train: withFullName(train),
       origin,
       destination,
       departTime: fromStop.depart,
@@ -454,7 +472,7 @@ function transferJourneys(
         const delayMin = delayForTrain(t1.id, dateKey);
 
         results.push({
-          train: t1,
+          train: withFullName(t1),
           origin,
           destination,
           departTime: fromStop.depart,
@@ -471,7 +489,7 @@ function transferJourneys(
           transfers: 1,
           legs: [
             {
-              train: t1,
+              train: withFullName(t1),
               origin,
               destination: transferStation,
               departTime: fromStop.depart,
@@ -481,7 +499,7 @@ function transferJourneys(
               delayMin,
             },
             {
-              train: leg2.train,
+              train: withFullName(leg2.train),
               origin: transferStation,
               destination,
               departTime: leg2.depart,

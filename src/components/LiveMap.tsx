@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useLivePolling } from "@/lib/useLivePolling";
 import { LiveBadge, LineBadge, OperatorBadge } from "@/components/Badges";
 import type { RouteLine } from "@/components/LiveMapCanvas";
+import { routePathForLine } from "@/lib/railLines";
 import {
   KRL_LINE_ORDER,
   LINE_META,
@@ -47,6 +48,7 @@ export function LiveMap({
   const [selected, setSelected] = useState<string | null>(initialTrain ?? null);
   const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("KRL");
   const [lineFilter, setLineFilter] = useState<string | null>(null);
+  const [showLabels, setShowLabels] = useState(true);
   const [hover, setHover] = useState<string | null>(null);
 
   // Sinkronkan pilihan bila URL berubah (menyesuaikan state saat render).
@@ -95,21 +97,25 @@ export function LiveMap({
             const s = stationByCode.get(c)!;
             return [s.lat, s.lng] as [number, number];
           }),
+          stationCodes: codes,
         });
       }
     }
 
     const lineRoutes: RouteLine[] = [];
     for (const [line, v] of byLine) {
+      const stationCoords = v.stops.map((c) => {
+        const s = stationByCode.get(c)!;
+        return [s.lat, s.lng] as [number, number];
+      });
       lineRoutes.push({
         key: line,
         operator: v.operator,
         line,
         color: LINE_META[line]?.color ?? OPERATOR_META[v.operator].color,
-        path: v.stops.map((c) => {
-          const s = stationByCode.get(c)!;
-          return [s.lat, s.lng] as [number, number];
-        }),
+        // Garis mengikuti REL ASLI (geometri OSM) bila tersedia.
+        path: routePathForLine(line, stationCoords) as [number, number][],
+        stationCodes: v.stops,
       });
     }
     return [...lineRoutes, ...kaiRoutes];
@@ -153,6 +159,41 @@ export function LiveMap({
     return routes.filter((r) => r.operator === operatorFilter).map((r) => r.key);
   }, [routes, lineFilter, operatorFilter]);
 
+  /**
+   * Stasiun yang diberi label nama: semua perhentian pada rute yang sedang
+   * terlihat (mengikuti filter operator/lin), sehingga tidak menumpuk.
+   */
+  const labeledStations = useMemo(() => {
+    const keys = new Set(focusKeys);
+    const codes = new Set<string>();
+    for (const r of routes) {
+      if (!keys.has(r.key)) continue;
+      for (const c of r.stationCodes ?? []) codes.add(c);
+    }
+    return [...codes];
+  }, [routes, focusKeys]);
+
+  /**
+   * Stasiun "utama" (simpul transit / terminal rute) — labelnya tetap tampil
+   * walau peta diperkecil, agar tidak terlalu padat. Sisanya muncul saat zoom in.
+   */
+  const primaryStations = useMemo(() => {
+    const keys = new Set(focusKeys);
+    const codes = new Set<string>();
+    for (const r of routes) {
+      if (!keys.has(r.key)) continue;
+      const sc = r.stationCodes ?? [];
+      // Terminal (ujung rute).
+      if (sc[0]) codes.add(sc[0]);
+      if (sc.length > 1) codes.add(sc[sc.length - 1]);
+      // Simpul transit (dilayani >1 lin).
+      for (const c of sc) {
+        if ((stationByCode.get(c)?.lines?.length ?? 0) > 1) codes.add(c);
+      }
+    }
+    return [...codes];
+  }, [routes, focusKeys, stationByCode]);
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
       {/* PETA */}
@@ -180,6 +221,15 @@ export function LiveMap({
               ))}
             </select>
             <button
+              onClick={() => setShowLabels((v) => !v)}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                showLabels ? "border-brand/50 text-foreground" : "border-border text-muted hover:border-brand/40"
+              }`}
+              title="Tampilkan/sembunyikan nama stasiun"
+            >
+              {showLabels ? "Nama stasiun ✓" : "Nama stasiun"}
+            </button>
+            <button
               onClick={refresh}
               className="rounded-lg border border-border px-2.5 py-1.5 text-xs transition hover:border-brand/50"
             >
@@ -193,6 +243,9 @@ export function LiveMap({
             stations={stations}
             routes={routes}
             focusKeys={focusKeys}
+            labeledStations={labeledStations}
+            primaryStations={primaryStations}
+            showLabels={showLabels}
             trains={mapTrains}
             selected={selected}
             hovered={hover}

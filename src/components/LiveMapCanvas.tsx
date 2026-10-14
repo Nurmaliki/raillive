@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { OPERATOR_META, type LiveStatus, type Operator, type Station } from "@/lib/types";
+import { snapToLine } from "@/lib/railLines";
 
 /** Satu lin rute (digabung per lin, bukan per kereta) untuk digambar di peta. */
 export interface RouteLine {
@@ -10,8 +11,10 @@ export interface RouteLine {
   operator: Operator;
   line?: string;
   color: string;
-  /** Daftar [lat, lng] berurutan dari stasiun asal ke tujuan. */
+  /** Daftar [lat, lng] berurutan dari stasiun asal ke tujuan (rel sungguhan). */
   path: [number, number][];
+  /** Kode stasiun yang dilalui (untuk label nama stasiun). */
+  stationCodes?: string[];
 }
 
 type LeafletNS = typeof import("leaflet");
@@ -37,11 +40,16 @@ const LINE_COLOR: Record<string, string> = {
   "lrt-cibubur": "#a855f7",
 };
 
+/** Hindari injeksi HTML dari nama stasiun. */
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
 /**
  * Peta sungguhan (OpenStreetMap via Leaflet) dengan:
- *  - garis rute per lin (bergaya "rel": casing gelap + garis warna)
- *  - penanda posisi tiap kereta yang diperbarui real-time
- *  - penanda stasiun
+ *  - garis rute mengikuti REL ASLI (geometri OpenStreetMap), bukan garis lurus
+ *  - nama tiap stasiun sebagai label di titik stasiun
+ *  - penanda posisi tiap kereta (ditempel ke rel) yang diperbarui real-time
  *
  * Komponen ini hanya dijalankan di klien (diimpor dengan `ssr: false`),
  * karena Leaflet butuh `window`/DOM.
@@ -50,6 +58,9 @@ export function LiveMapCanvas({
   stations,
   routes,
   focusKeys,
+  labeledStations,
+  primaryStations,
+  showLabels,
   trains,
   selected,
   hovered,
@@ -62,6 +73,12 @@ export function LiveMapCanvas({
   routes: RouteLine[];
   /** Kunci rute yang sedang terlihat (untuk menentukan area fokus peta). */
   focusKeys: string[];
+  /** Kode stasiun yang diberi label nama. */
+  labeledStations: string[];
+  /** Subset stasiun utama — labelnya tetap tampil pada zoom rendah. */
+  primaryStations: string[];
+  /** Tampilkan label nama stasiun? */
+  showLabels: boolean;
   trains: LiveStatus[];
   selected: string | null;
   hovered: string | null;
@@ -75,6 +92,7 @@ export function LiveMapCanvas({
   const mapRef = useRef<LMap | null>(null);
   const routeLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const stationLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const labelLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const trainLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const trainMarkers = useRef(new Map<string, LCircle>());
   const routeLines = useRef(new Map<string, { casing: LPoly; main: LPoly }>());
@@ -119,6 +137,7 @@ export function LiveMapCanvas({
 
       routeLayerRef.current = L.layerGroup().addTo(map);
       stationLayerRef.current = L.layerGroup().addTo(map);
+      labelLayerRef.current = L.layerGroup().addTo(map);
       trainLayerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
 
@@ -138,7 +157,7 @@ export function LiveMapCanvas({
     };
   }, []);
 
-  /* ---------- 2. Stasiun ---------- */
+  /* ---------- 2. Titik stasiun ---------- */
   useEffect(() => {
     const L = LRef.current;
     const layer = stationLayerRef.current;
@@ -157,7 +176,64 @@ export function LiveMapCanvas({
     }
   }, [ready, stations]);
 
-  /* ---------- 3. Garis rute (satu per lin) ---------- */
+  /* ---------- 3. Label nama stasiun (dengan anti-tumpang-tindih) ---------- */
+  useEffect(() => {
+    if (!ready) return;
+    const L = LRef.current;
+    const layer = labelLayerRef.current;
+    const map = mapRef.current;
+    if (!L || !layer || !map) return;
+
+    const draw = () => {
+      layer.clearLayers();
+      if (!showLabels || labeledStations.length === 0) return;
+
+      const primarySet = new Set(primaryStations);
+      const byCode = new Map(stations.map((s) => [s.code, s]));
+      // Stasiun utama diproses lebih dulu → menang saat ada tabrakan label.
+      const ordered = [...labeledStations].sort(
+        (a, b) => (primarySet.has(b) ? 1 : 0) - (primarySet.has(a) ? 1 : 0),
+      );
+
+      // Kotak label yang sudah terpasang (dalam koordinat piksel) untuk
+      // mencegah label saling menimpa; yang bertabrakan dilewati.
+      const placed: { x1: number; x2: number; y1: number; y2: number }[] = [];
+
+      for (const code of ordered) {
+        const s = byCode.get(code);
+        if (!s) continue;
+        const p = map.latLngToContainerPoint([s.lat, s.lng]);
+        const w = s.name.length * 5.6 + 6;
+        const box = { x1: p.x - w / 2, x2: p.x + w / 2, y1: p.y + 5, y2: p.y + 17 };
+        let overlap = false;
+        for (const b of placed) {
+          if (box.x1 < b.x2 && box.x2 > b.x1 && box.y1 < b.y2 && box.y2 > b.y1) {
+            overlap = true;
+            break;
+          }
+        }
+        if (overlap) continue;
+        placed.push(box);
+
+        const isPrimary = primarySet.has(code);
+        const icon = L.divIcon({
+          className: `rl-stn-label${isPrimary ? " rl-stn-label-p" : ""}`,
+          html: `<span>${esc(s.name)}</span>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+        L.marker([s.lat, s.lng], { icon, interactive: false, keyboard: false }).addTo(layer);
+      }
+    };
+
+    draw();
+    map.on("zoomend", draw);
+    return () => {
+      map.off("zoomend", draw);
+    };
+  }, [ready, stations, labeledStations, primaryStations, showLabels]);
+
+  /* ---------- 4. Garis rute (satu per lin, mengikuti rel asli) ---------- */
   useEffect(() => {
     const L = LRef.current;
     const layer = routeLayerRef.current;
@@ -203,7 +279,7 @@ export function LiveMapCanvas({
     }
   }, [ready, routes, focusKeys]);
 
-  /* ---------- 4. Sorotan rute aktif / filter lin ---------- */
+  /* ---------- 5. Sorotan rute aktif / filter lin ---------- */
   useEffect(() => {
     for (const [key, { casing, main }] of routeLines.current) {
       const dim = lineFilter ? key !== lineFilter : false;
@@ -218,7 +294,7 @@ export function LiveMapCanvas({
     }
   }, [activeLine, hovered, lineFilter, ready, routes]);
 
-  /* ---------- 5. Penanda kereta (sinkron inkremental) ---------- */
+  /* ---------- 6. Penanda kereta (sinkron inkremental, ditempel ke rel) ---------- */
   useEffect(() => {
     const L = LRef.current;
     const layer = trainLayerRef.current;
@@ -228,7 +304,9 @@ export function LiveMapCanvas({
     for (const t of trains) {
       seen.add(t.trainId);
       const color = trainColor(t);
-      const latlng: [number, number] = [t.position.lat, t.position.lng];
+      // Tempelkan posisi ke rel lin agar penanda tidak melayang di luar jalur.
+      const [plat, plng] = snapToLine(t.line, t.position.lat, t.position.lng);
+      const latlng: [number, number] = [plat, plng];
       const isHot = selected === t.trainId || hovered === t.trainId;
       let m = trainMarkers.current.get(t.trainId);
       if (!m) {
@@ -250,7 +328,7 @@ export function LiveMapCanvas({
       }
       m.setRadius(isHot ? 8 : 5);
       m.bindTooltip(
-        `<b>${t.trainName}</b><br/>${t.lastStationName} → ${t.nextStationName ?? "stasiun akhir"}` +
+        `<b>${esc(t.trainName)}</b><br/>${esc(t.lastStationName)} → ${esc(t.nextStationName ?? "stasiun akhir")}` +
           (t.delayMin > 0 ? `<br/>Terlambat +${t.delayMin} menit` : ""),
         { direction: "top", className: "rl-tip", opacity: 1 },
       );
@@ -265,7 +343,7 @@ export function LiveMapCanvas({
     }
   }, [ready, trains, selected, hovered, onSelect, onHover]);
 
-  /* ---------- 6. Sorotan + fokus kereta terpilih ---------- */
+  /* ---------- 7. Sorotan + fokus kereta terpilih ---------- */
   useEffect(() => {
     const L = LRef.current;
     const map = mapRef.current;
@@ -281,18 +359,19 @@ export function LiveMapCanvas({
     if (!t) return;
 
     const color = trainColor(t);
+    const [plat, plng] = snapToLine(t.line, t.position.lat, t.position.lng);
     const icon = L.divIcon({
       className: "rl-sel-wrap",
       html: `<span class="rl-sel" style="--c:${color}"></span>`,
       iconSize: [0, 0],
       iconAnchor: [0, 0],
     });
-    const marker = L.marker([t.position.lat, t.position.lng], {
+    const marker = L.marker([plat, plng], {
       icon,
       interactive: false,
       zIndexOffset: 1000,
     })
-      .bindTooltip(`<b>${t.trainName}</b> · KA ${t.trainNumber}`, {
+      .bindTooltip(`<b>${esc(t.trainName)}</b> · KA ${esc(t.trainNumber)}`, {
         permanent: true,
         direction: "right",
         className: "rl-tip rl-tip-strong",
@@ -300,10 +379,10 @@ export function LiveMapCanvas({
       })
       .addTo(map);
     highlightRef.current = marker;
-    map.panTo([t.position.lat, t.position.lng], { animate: true, duration: 0.6 });
+    map.panTo([plat, plng], { animate: true, duration: 0.6 });
   }, [ready, selected, trains]);
 
-  /* ---------- 7. Ukuran ulang saat jendela berubah ---------- */
+  /* ---------- 8. Ukuran ulang saat jendela berubah ---------- */
   useEffect(() => {
     if (!ready) return;
     const onResize = () => mapRef.current?.invalidateSize();
