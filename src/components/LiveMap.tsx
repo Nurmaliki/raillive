@@ -344,6 +344,9 @@ export function LiveMap({
                   <div className="flex items-center gap-2">
                     <OperatorBadge operator={t.operator} />
                     {t.line && <LineBadge line={t.line} />}
+                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-bold text-brand">
+                      KA {t.trainNumber}
+                    </span>
                     <span className="text-sm font-semibold">{t.trainName}</span>
                   </div>
                   <LiveBadge status={t.status} />
@@ -414,6 +417,13 @@ export function LiveMap({
             <Detail label="Progres" value={`${Math.round(selectedTrain.progress * 100)}%`} />
           </div>
 
+          {/* RINCIAN RUTE (semua perhentian + jam) */}
+          <RouteDetail
+            def={trains.find((x) => x.id === selectedTrain.trainId) ?? null}
+            live={selectedTrain}
+            stationByCode={stationByCode}
+          />
+
           <p className="mt-4 text-xs text-muted">
             Estimasi sisa perjalanan mengikuti posisi saat ini. Diperbarui{" "}
             {new Date(selectedTrain.updatedAt).toLocaleTimeString("id-ID")}.
@@ -429,6 +439,102 @@ function Detail({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-border bg-surface px-3.5 py-3">
       <div className="text-[11px] uppercase tracking-wider text-muted">{label}</div>
       <div className="mt-1 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+/**
+ * Rincian rute lengkap: semua perhentian kereta terpilih, berurutan dari asal
+ * ke tujuan, dengan jam terjadwal dan penanda posisi kereta saat ini.
+ */
+function RouteDetail({
+  def,
+  live,
+  stationByCode,
+}: {
+  def: Train | null;
+  live: LiveStatus;
+  stationByCode: Map<string, Station>;
+}) {
+  if (!def || def.stops.length < 2) return null;
+
+  const stops = def.stops;
+  const lastIdx = stops.findIndex((s) => s.stationCode === live.lastStation);
+  const nextIdx = stops.findIndex((s) => s.stationCode === live.nextStation);
+  // Perhentian yang sudah dilewati: sebelum stasiun terakhir yang disinggahi.
+  const passedUntil = lastIdx >= 0 ? lastIdx : -1;
+
+  return (
+    <div className="mt-5">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-bold">Rincian Rute</h4>
+        <span className="text-[11px] text-muted">
+          {stops.length} perhentian · {live.originName} → {live.destinationName}
+        </span>
+      </div>
+      <ol className="relative max-h-80 space-y-0 overflow-auto rounded-xl border border-border bg-surface p-3">
+        {stops.map((stop, i) => {
+          const st = stationByCode.get(stop.stationCode);
+          const name = st?.name ?? stop.stationCode;
+          const passed = i < passedUntil || (i === passedUntil && live.status === "arrived");
+          const isCurrent = i === lastIdx && live.status !== "arrived";
+          const isNext = i === nextIdx;
+          const time = stop.depart ?? stop.arrive ?? "";
+          return (
+            <li key={`${stop.stationCode}-${i}`} className="flex items-stretch gap-3">
+              {/* Rel waktu */}
+              <div className="flex flex-col items-center">
+                <span
+                  className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full border ${
+                    isCurrent
+                      ? "border-brand bg-brand"
+                      : isNext
+                        ? "border-brand bg-transparent"
+                        : passed
+                          ? "border-border bg-border"
+                          : "border-border bg-surface"
+                  }`}
+                />
+                {i < stops.length - 1 && (
+                  <span className={`w-px flex-1 ${passed ? "bg-border" : "bg-border/50"}`} />
+                )}
+              </div>
+              {/* Isi perhentian */}
+              <div className="flex flex-1 items-baseline justify-between gap-2 pb-3">
+                <div className="min-w-0">
+                  <div
+                    className={`truncate text-sm ${
+                      isCurrent
+                        ? "font-bold text-brand"
+                        : passed
+                          ? "text-muted"
+                          : "font-medium text-foreground"
+                    }`}
+                  >
+                    {name}
+                    {isCurrent && <span className="ml-2 text-[11px] text-brand">sekarang</span>}
+                    {isNext && !isCurrent && (
+                      <span className="ml-2 text-[11px] text-muted">berikutnya</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted">
+                    {i === 0 ? "Stasiun asal" : i === stops.length - 1 ? "Stasiun akhir" : `Perhentian ${i}`}
+                    {stop.dayOffset > 0 && " · hari berikutnya"}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right font-mono text-xs">
+                  {stop.arrive && stop.arrive !== time ? (
+                    <div className="text-muted">tiba {stop.arrive}</div>
+                  ) : null}
+                  <div className={passed ? "text-muted" : "text-foreground"}>
+                    {i === stops.length - 1 ? `tiba ${stop.arrive ?? time}` : `brkt ${time}`}
+                  </div>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

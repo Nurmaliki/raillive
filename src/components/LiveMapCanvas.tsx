@@ -167,12 +167,15 @@ export function LiveMapCanvas({
       // Koordinat stasiun di dataset bersifat perkiraan → tempel ke rel
       // lin yang dilayaninya agar titik tepat berada di atas garis rute.
       const [slat, slng] = snapStationToRails(s.lines, s.lat, s.lng);
+      // Titik terang dengan cincin gelap supaya jelas terlihat di peta gelap
+      // dan tampak "duduk" di atas garis rel.
       L.circleMarker([slat, slng], {
-        radius: 3,
-        color: "#5b7099",
-        weight: 1,
-        fillColor: "#0e1626",
-        fillOpacity: 1,
+        radius: 3.4,
+        color: "#05080f",
+        weight: 1.5,
+        opacity: 0.9,
+        fillColor: "#e6edf7",
+        fillOpacity: 0.95,
       })
         .bindTooltip(`${s.name} (${s.code})`, { direction: "top", className: "rl-tip" })
         .addTo(layer);
