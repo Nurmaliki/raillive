@@ -28,7 +28,27 @@ export function StationPicker({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
+  const [maxListPx, setMaxListPx] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  // Hitung arah buka + tinggi daftar maksimum dari ruang yang tersedia,
+  // supaya daftar tidak pernah terpotong tepi layar.
+  function toggleOpen() {
+    setOpen((o) => {
+      const next = !o;
+      if (next && boxRef.current) {
+        const r = boxRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - r.bottom - 12;
+        const spaceAbove = r.top - 12;
+        const goUp = spaceBelow < 320 && spaceAbove > spaceBelow;
+        setDropUp(goUp);
+        // Kurangi tinggi input pencarian (~46px) + border.
+        setMaxListPx(Math.max(140, Math.min(320, (goUp ? spaceAbove : spaceBelow) - 48)));
+      }
+      return next;
+    });
+  }
 
   const pool = useMemo(
     () => (operators ? stations.filter((s) => s.operators.some((o) => operators.includes(o))) : stations),
@@ -92,7 +112,7 @@ export function StationPicker({
       </label>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3.5 py-3 text-left transition hover:border-brand/50"
       >
         {selected ? (
@@ -117,7 +137,12 @@ export function StationPicker({
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
+        <div
+          className={`absolute left-0 z-50 w-full min-w-[17rem] overflow-hidden rounded-xl border border-border shadow-2xl ${
+            dropUp ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+          style={{ background: "var(--surface)", backdropFilter: "none" }}
+        >
           <input
             autoFocus
             value={query}
@@ -125,7 +150,10 @@ export function StationPicker({
             placeholder="Cari nama stasiun, kota, atau kode…"
             className="w-full border-b border-border bg-surface-2 px-3.5 py-2.5 text-sm outline-none placeholder:text-muted"
           />
-          <div className="max-h-72 overflow-auto">
+          <div
+            className="overflow-auto pb-1.5"
+            style={{ maxHeight: maxListPx ? `${maxListPx}px` : "20rem" }}
+          >
             {results.length === 0 && (
               <p className="px-3.5 py-3 text-sm text-muted">Stasiun tidak ditemukan.</p>
             )}

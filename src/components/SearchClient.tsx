@@ -6,7 +6,7 @@ import { StationPicker } from "@/components/StationPicker";
 import { OperatorBadge, DelayChip, LineBadge } from "@/components/Badges";
 import { addFavorite, useFavorites } from "@/lib/favorites";
 import { formatDuration } from "@/lib/time";
-import { useToday } from "@/lib/useLivePolling";
+import { useToday, useWibNow } from "@/lib/useLivePolling";
 import type { JourneyOption, Station } from "@/lib/types";
 
 interface SearchResponse {
@@ -17,11 +17,25 @@ interface SearchResponse {
   journeys: JourneyOption[];
 }
 
+/** Rentang cepat filter waktu (jam) — untuk mempersempit hasil dengan sekali klik. */
+const TIME_PRESETS: { label: string; addH: number }[] = [
+  { label: "Sekarang", addH: 0 },
+  { label: "+1 jam", addH: 1 },
+  { label: "+2 jam", addH: 2 },
+];
+
+function addHours(hhmm: string, h: number): string {
+  const [H, M] = hhmm.split(":").map(Number);
+  const total = (H * 60 + M + h * 60 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function SearchClient({ stations }: { stations: Station[] }) {
   // Default rute KRL yang populer (Manggarai → Bogor).
   const [origin, setOrigin] = useState("MRI");
   const [destination, setDestination] = useState("BOG");
   const [dateInput, setDateInput] = useState("");
+  const [timeInput, setTimeInput] = useState("");
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +43,8 @@ export function SearchClient({ stations }: { stations: Station[] }) {
   // Tanggal default = hari ini (dihitung di klien, tanpa setState di effect).
   const today = useToday();
   const date = dateInput || today;
+  // Jam WIB untuk preset "Sekarang" (null sebelum hidrasi → tombol dinonaktifkan).
+  const wibNow = useWibNow();
 
   // Status favorit diturunkan dari store, bukan disalin ke state.
   const favorites = useFavorites();
@@ -54,12 +70,23 @@ export function SearchClient({ stations }: { stations: Station[] }) {
     }
   }
 
-  const hasResults = useMemo(() => (data?.journeys?.length ?? 0) > 0, [data]);
+  // Filter waktu diterapkan di klien: hanya perjalanan yang berangkat pada/ setelah jam dipilih.
+  const filtered = useMemo(() => {
+    const all = data?.journeys ?? [];
+    if (!timeInput) return all;
+    return all.filter((j) => j.departTime >= timeInput);
+  }, [data, timeInput]);
+
+  const hasResults = filtered.length > 0;
+  const total = data?.journeys?.length ?? 0;
+  const timeFiltered = Boolean(timeInput) && total > filtered.length;
 
   return (
     <div className="space-y-6">
-      <div className="card p-4 sm:p-5">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* relative z-20: kartu ini harus menumpuk di atas kartu hasil, supaya
+          dropdown stasiun (yang berada di dalamnya) tidak tertimpa. */}
+      <div className="card relative z-20 p-4 sm:p-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StationPicker label="Dari" stations={stations} value={origin} onChange={setOrigin} />
           <StationPicker
             label="Ke"
@@ -78,6 +105,26 @@ export function SearchClient({ stations }: { stations: Station[] }) {
               className="w-full rounded-xl border border-border bg-surface px-3.5 py-3 outline-none focus:border-brand/60"
             />
           </div>
+          <div>
+            <label className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted">
+              <span>Waktu</span>
+              {timeInput && (
+                <button
+                  type="button"
+                  onClick={() => setTimeInput("")}
+                  className="text-[10px] font-medium normal-case tracking-normal text-brand hover:underline"
+                >
+                  reset
+                </button>
+              )}
+            </label>
+            <input
+              type="time"
+              value={timeInput}
+              onChange={(e) => setTimeInput(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface px-3.5 py-3 outline-none focus:border-brand/60"
+            />
+          </div>
           <div className="flex items-end">
             <button
               onClick={runSearch}
@@ -87,6 +134,36 @@ export function SearchClient({ stations }: { stations: Station[] }) {
               {loading ? "Mencari…" : "Cari Jadwal"}
             </button>
           </div>
+        </div>
+
+        {/* Preset waktu cepat — memudahkan memfilter tanpa mengetik. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">Berangkat dari:</span>
+          {TIME_PRESETS.map((p) => {
+            const val = wibNow ? addHours(wibNow, p.addH) : null;
+            const active = val !== null && timeInput === val;
+            return (
+              <button
+                key={p.label}
+                type="button"
+                disabled={!val}
+                onClick={() => val && setTimeInput(val)}
+                className={`rounded-lg border px-2.5 py-1 text-xs transition disabled:opacity-40 ${
+                  active
+                    ? "border-brand/60 bg-brand/10 text-brand"
+                    : "border-border hover:border-brand/50"
+                }`}
+              >
+                {p.label}
+                {val && <span className="ml-1 text-muted">{val}</span>}
+              </button>
+            );
+          })}
+          {timeInput && (
+            <span className="rounded-lg bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand">
+              ≥ {timeInput}
+            </span>
+          )}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -104,20 +181,31 @@ export function SearchClient({ stations }: { stations: Station[] }) {
 
       {data && (
         <div>
-          <div className="mb-3 flex items-baseline justify-between">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-bold">
               {data.journeys[0]?.origin.name} → {data.journeys[0]?.destination.name}
             </h2>
-            <span className="text-sm text-muted">{data.count} perjalanan ditemukan</span>
+            <span className="text-sm text-muted">
+              {timeFiltered ? (
+                <>
+                  <b className="text-foreground">{filtered.length}</b> dari {total} perjalanan
+                  <span className="text-brand"> · ≥ {timeInput}</span>
+                </>
+              ) : (
+                <>{filtered.length} perjalanan ditemukan</>
+              )}
+            </span>
           </div>
 
           {!hasResults ? (
             <p className="card p-6 text-center text-muted">
-              Tidak ada perjalanan langsung untuk rute ini. Coba kombinasi stasiun lain.
+              {timeFiltered
+                ? `Tidak ada keberangkatan setelah ${timeInput}. Coba mundurkan waktu atau tekan reset.`
+                : "Tidak ada perjalanan langsung untuk rute ini. Coba kombinasi stasiun lain."}
             </p>
           ) : (
             <ul className="space-y-3">
-              {data.journeys.map((j) => (
+              {filtered.map((j) => (
                 <li key={j.train.id} className="card fade-up p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -155,7 +243,7 @@ export function SearchClient({ stations }: { stations: Station[] }) {
                         </span>
                       </div>
                       <p className="mt-3 text-center text-xs text-muted">
-                        {j.distanceKm} km · {j.train.stops.length} perhentian
+                        {j.distanceKm} km · {j.train.stops.length} stasiun dilalui
                       </p>
                     </div>
                     <div className="text-center">

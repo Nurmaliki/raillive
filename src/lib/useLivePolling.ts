@@ -108,3 +108,18 @@ export function useToday(): string {
     getTodayServerSnapshot,
   );
 }
+
+/** Jam berjalan di WIB (UTC+7) sebagai "HH:MM"; `null` sebelum hidrasi klien. */
+function getWibSnapshot(): string {
+  const now = new Date();
+  const wib = new Date(now.getTime() + (now.getTimezoneOffset() + 420) * 60000);
+  return `${String(wib.getHours()).padStart(2, "0")}:${String(wib.getMinutes()).padStart(2, "0")}`;
+}
+
+function getWibServerSnapshot(): string | null {
+  return null;
+}
+
+export function useWibNow(): string | null {
+  return useSyncExternalStore(subscribeClock, getWibSnapshot, getWibServerSnapshot);
+}
