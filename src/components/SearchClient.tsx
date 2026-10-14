@@ -201,7 +201,7 @@ export function SearchClient({ stations }: { stations: Station[] }) {
             <p className="card p-6 text-center text-muted">
               {timeFiltered
                 ? `Tidak ada keberangkatan setelah ${timeInput}. Coba mundurkan waktu atau tekan reset.`
-                : "Tidak ada perjalanan langsung untuk rute ini. Coba kombinasi stasiun lain."}
+                : "Tidak ada perjalanan langsung maupun transit untuk rute ini. Coba kombinasi stasiun lain."}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -243,7 +243,8 @@ export function SearchClient({ stations }: { stations: Station[] }) {
                         </span>
                       </div>
                       <p className="mt-3 text-center text-xs text-muted">
-                        {j.distanceKm} km · {j.train.stops.length} stasiun dilalui
+                        {j.distanceKm} km · {j.stopsCount ?? j.train.stops.length} stasiun dilalui
+                        {j.transfers ? ` · ${j.transfers}x transit` : ""}
                       </p>
                     </div>
                     <div className="text-center">
@@ -251,6 +252,42 @@ export function SearchClient({ stations }: { stations: Station[] }) {
                       <div className="text-xs text-muted">{j.destination.code}</div>
                     </div>
                   </div>
+
+                  {/* Rincian tiap ruas bila perjalanan perlu transit. */}
+                  {j.legs && j.legs.length > 1 && (
+                    <div className="mt-4 space-y-2 rounded-xl border border-border bg-surface/60 p-3">
+                      {j.legs.map((leg, li) => (
+                        <div key={leg.train.id} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand/15 font-semibold text-brand">
+                            {li + 1}
+                          </span>
+                          {leg.train.line && <LineBadge line={leg.train.line} />}
+                          <span className="font-medium">{leg.train.name}</span>
+                          <span className="text-muted">
+                            {leg.origin.name} ({leg.origin.code}) → {leg.destination.name} (
+                            {leg.destination.code})
+                          </span>
+                          <span className="tabular ml-auto text-muted">
+                            {leg.departTime}–{leg.arriveTime}
+                          </span>
+                          {li < j.legs!.length - 1 && (
+                            <span className="w-full text-[10px] text-amber-400/80">
+                              Transit di {leg.destination.name} · tunggu{" "}
+                              {j.legs![li + 1].departTime && leg.arriveTime
+                                ? `${Math.max(
+                                    0,
+                                    Number(j.legs![li + 1].departTime.slice(0, 2)) * 60 +
+                                      Number(j.legs![li + 1].departTime.slice(3, 5)) -
+                                      (Number(leg.arriveTime.slice(0, 2)) * 60 +
+                                        Number(leg.arriveTime.slice(3, 5))),
+                                  )} menit`
+                                : "sebentar"}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
                     <span className="text-xs text-muted">Mulai dari</span>

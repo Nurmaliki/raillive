@@ -141,6 +141,20 @@ export interface LiveStatus {
   updatedAt: string;
 }
 
+/** Satu ruas perjalanan (dipakai bila rute butuh transit). */
+export interface JourneyLeg {
+  train: Train;
+  origin: Station;
+  destination: Station;
+  /** Jam berangkat terjadwal "HH:mm". */
+  departTime: string;
+  /** Jam tiba terjadwal "HH:mm". */
+  arriveTime: string;
+  durationMin: number;
+  distanceKm: number;
+  delayMin: number;
+}
+
 /** Hasil pencarian jadwal antar dua stasiun. */
 export interface JourneyOption {
   train: Train;
@@ -155,6 +169,12 @@ export interface JourneyOption {
   priceFrom: number;
   delayMin: number;
   live: LiveStatus | null;
+  /** Jumlah stasiun pada segmen yang ditempuh (termasuk asal & tujuan). */
+  stopsCount?: number;
+  /** Jumlah transit (0/undefined = perjalanan langsung). */
+  transfers?: number;
+  /** Rincian tiap ruas; panjang > 1 berarti ada transit. */
+  legs?: JourneyLeg[];
 }
 
 /** Peringatan / gangguan perjalanan. */

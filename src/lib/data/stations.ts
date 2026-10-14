@@ -77,6 +77,7 @@ const RAW_STATIONS: Station[] = [
   { code: "KMO", name: "Kemayoran", city: "Jakarta", operators: ["KRL"], lat: -6.164, lng: 106.845 },
   { code: "RJW", name: "Rajawali", city: "Jakarta", operators: ["KRL"], lat: -6.151, lng: 106.833 },
   { code: "KPB", name: "Kampung Bandan", city: "Jakarta", operators: ["KRL"], lat: -6.145, lng: 106.82 },
+  { code: "AK", name: "Angke", city: "Jakarta", operators: ["KRL"], lat: -6.1495, lng: 106.8018 },
 
   // --- Lin Tangerang (Coklat): Duri – Tangerang ---
   { code: "DU", name: "Duri", city: "Jakarta", operators: ["KRL"], lat: -6.152, lng: 106.797 },

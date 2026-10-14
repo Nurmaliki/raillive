@@ -186,8 +186,12 @@ interface LineSpec {
   /** Jam keberangkatan pertama & terakhir dari stasiun asal (menit). */
   startMin: number;
   endMin: number;
-  /** Selang antar keberangkatan (menit). */
+  /**
+   * Selang antar keberangkatan (menit).
+   */
   headway: number;
+  /** Offset nomor KA (agar dua pola lin tidak menghasilkan nomor kembar). */
+  seqOffset?: number;
 }
 
 const DWELL = 1; // menit berhenti di stasiun antara
@@ -251,7 +255,7 @@ function generateLine(spec: LineSpec): Train[] {
     .reverse()
     .map((st) => ({ code: st.code, at: maxAt - st.at }));
 
-  let seq = 1;
+  let seq = 1 + (spec.seqOffset ?? 0);
   for (let t = spec.startMin; t <= spec.endMin; t += spec.headway) {
     out.push(buildTrip(spec, spec.stops, t, seq, "", "a"));
     out.push(buildTrip(spec, backward, t, seq, spec.reverseName ?? "", "b"));
@@ -305,6 +309,51 @@ const KRL_LINES: LineSpec[] = [
     number: "C",
     operator: "KRL",
     serviceClass: "Commuter",
+    /**
+     * Jalur lingkar (Cikarang Loop). Dari Cikarang masuk Jatinegara lalu
+     * mengitari pusat kota: Pasar Senen → Kemayoran → Rajawali → Kampung
+     * Bandan → Angke → Duri → Tanah Abang → Manggarai, lalu kembali ke
+     * Jatinegara. Karena berbentuk lingkar, rute seperti Kemayoran → Duri
+     * (dan sebaliknya) terlayani LANGSUNG tanpa transit.
+     */
+    stops: [
+      { code: "CKR", at: 0 },
+      { code: "MTM", at: 3 },
+      { code: "CIT", at: 6 },
+      { code: "TBN", at: 10 },
+      { code: "BKST", at: 14 },
+      { code: "BEK", at: 17 },
+      { code: "KRI", at: 20 },
+      { code: "CUK", at: 24 },
+      { code: "KLDB", at: 27 },
+      { code: "BUA", at: 30 },
+      { code: "KLD", at: 33 },
+      { code: "JNG", at: 36 },
+      { code: "PSE", at: 41 },
+      { code: "KMO", at: 44 },
+      { code: "RJW", at: 47 },
+      { code: "KPB", at: 50 },
+      { code: "AK", at: 54 },
+      { code: "DU", at: 57 },
+      { code: "THB", at: 62 },
+      { code: "MRI", at: 67 },
+    ],
+    startMin: 5 * 60,
+    endMin: 21 * 60,
+    headway: 20,
+  },
+  {
+    /**
+     * Pola layanan kedua Lin Cikarang: berakhir di Jakarta Kota lewat
+     * Pasar Senen–Kampung Bandan (half racket "via Jakarta Kota").
+     */
+    id: "krl-cikarang-jakk",
+    line: "cikarang",
+    name: "KRL Lin Cikarang",
+    number: "C",
+    seqOffset: 200,
+    operator: "KRL",
+    serviceClass: "Commuter",
     stops: [
       { code: "CKR", at: 0 },
       { code: "MTM", at: 3 },
@@ -326,7 +375,7 @@ const KRL_LINES: LineSpec[] = [
     ],
     startMin: 5 * 60,
     endMin: 21 * 60,
-    headway: 20,
+    headway: 40,
   },
   {
     id: "krl-tangerang",

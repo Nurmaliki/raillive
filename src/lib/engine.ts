@@ -299,11 +299,25 @@ export function departuresAt(
   return out.sort((a, b) => a.actual.localeCompare(b.actual));
 }
 
+/** Waktu minimum untuk berpindah kereta di stasiun transit (menit). */
+const MIN_TRANSFER_MIN = 5;
+
+/** Jarak (km) ruas dari indeks `fromIdx` ke `toIdx` pada rute sebuah kereta. */
+function legDistanceKm(train: Train, fromIdx: number, toIdx: number): number {
+  let d = 0;
+  for (let i = fromIdx + 1; i <= toIdx; i++) {
+    const a = getStation(train.stops[i - 1].stationCode);
+    const b = getStation(train.stops[i].stationCode);
+    if (a && b) d += haversineKm(a, b);
+  }
+  return d;
+}
+
 /**
- * Cari perjalanan langsung (tanpa transit) dari stasiun asal ke tujuan.
+ * Perjalanan LANGSUNG (tanpa transit) dari stasiun asal ke tujuan.
  * `dateKey` dipakai untuk menghitung delay; jam dihitung dari waktu berangkat.
  */
-export function searchJourneys(
+function directJourneys(
   originCode: string,
   destCode: string,
   now: Date,
@@ -329,14 +343,7 @@ export function searchJourneys(
     const durationMin = arriveAbs - departAbs;
     if (durationMin <= 0) continue;
 
-    // Jarak ruas yang ditempuh.
-    let distanceKm = 0;
-    for (let i = fromIdx + 1; i <= toIdx; i++) {
-      const a = getStation(train.stops[i - 1].stationCode);
-      const b = getStation(train.stops[i].stationCode);
-      if (a && b) distanceKm += haversineKm(a, b);
-    }
-
+    const distanceKm = legDistanceKm(train, fromIdx, toIdx);
     const delayMin = delayForTrain(train.id, dateKey);
     const live = computeLiveStatus(train, now, dateKey);
 
@@ -351,10 +358,162 @@ export function searchJourneys(
       priceFrom: Math.round(basePrice(train, distanceKm) / 1000) * 1000,
       delayMin,
       live,
+      stopsCount: toIdx - fromIdx + 1,
+      transfers: 0,
     });
   }
 
   return results.sort((a, b) => a.departTime.localeCompare(b.departTime));
+}
+
+/**
+ * Perjalanan dengan SATU kali transit (ganti kereta di stasiun persinggungan).
+ * Dipakai sebagai cadangan saat tidak ada perjalanan langsung, sehingga rute
+ * lintas-lin (mis. Tangerang → Cikarang via Duri) tetap menghasilkan opsi.
+ */
+function transferJourneys(
+  originCode: string,
+  destCode: string,
+  now: Date,
+  dateKey: string,
+): JourneyOption[] {
+  const origin = getStation(originCode);
+  const destination = getStation(destCode);
+  if (!origin || !destination || origin.code === destination.code) return [];
+
+  interface Leg2 {
+    train: Train;
+    fromIdx: number;
+    toIdx: number;
+    departAbs: number;
+    arriveAbs: number;
+    depart: string;
+    arrive: string;
+    distanceKm: number;
+  }
+
+  // Peta: stasiun transit -> daftar ruas kedua (stasiun itu -> tujuan).
+  const leg2ByStation = new Map<string, Leg2[]>();
+  for (const t of TRAINS) {
+    const di = t.stops.findIndex((st) => st.stationCode === destination.code);
+    if (di <= 0) continue;
+    const toStop = t.stops[di];
+    if (!toStop.arrive) continue;
+    const arriveAbs = absoluteMinutes(toStop.arrive, toStop.dayOffset);
+    for (let i = 0; i < di; i++) {
+      const st = t.stops[i];
+      if (!st.depart) continue;
+      const list = leg2ByStation.get(st.stationCode) ?? [];
+      list.push({
+        train: t,
+        fromIdx: i,
+        toIdx: di,
+        departAbs: absoluteMinutes(st.depart, st.dayOffset),
+        arriveAbs,
+        depart: st.depart,
+        arrive: toStop.arrive,
+        distanceKm: legDistanceKm(t, i, di),
+      });
+      leg2ByStation.set(st.stationCode, list);
+    }
+  }
+
+  const results: JourneyOption[] = [];
+  const seen = new Set<string>();
+
+  for (const t1 of TRAINS) {
+    const fromIdx = t1.stops.findIndex((st) => st.stationCode === origin.code);
+    if (fromIdx === -1 || fromIdx === t1.stops.length - 1) continue;
+    const fromStop = t1.stops[fromIdx];
+    if (!fromStop.depart) continue;
+    const leg1DepartAbs = absoluteMinutes(fromStop.depart, fromStop.dayOffset);
+
+    for (let i = fromIdx + 1; i < t1.stops.length; i++) {
+      const transferStop = t1.stops[i];
+      const transferCode = transferStop.stationCode;
+      if (transferCode === destination.code || !transferStop.arrive) continue;
+      const leg1ArriveAbs = absoluteMinutes(transferStop.arrive, transferStop.dayOffset);
+      const candidates = leg2ByStation.get(transferCode);
+      if (!candidates) continue;
+
+      const transferStation = getStation(transferCode);
+      if (!transferStation) continue;
+      const leg1Distance = legDistanceKm(t1, fromIdx, i);
+
+      for (const leg2 of candidates) {
+        if (leg2.train.id === t1.id) continue;
+        if (leg2.departAbs < leg1ArriveAbs + MIN_TRANSFER_MIN) continue;
+        const durationMin = leg2.arriveAbs - leg1DepartAbs;
+        if (durationMin <= 0) continue;
+
+        const key = `${t1.id}|${leg2.train.id}|${transferCode}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const distanceKm = leg1Distance + leg2.distanceKm;
+        const delayMin = delayForTrain(t1.id, dateKey);
+
+        results.push({
+          train: t1,
+          origin,
+          destination,
+          departTime: fromStop.depart,
+          arriveTime: leg2.arrive,
+          durationMin,
+          distanceKm: Math.round(distanceKm),
+          priceFrom:
+            Math.round(
+              (basePrice(t1, leg1Distance) + basePrice(leg2.train, leg2.distanceKm)) / 1000,
+            ) * 1000,
+          delayMin,
+          live: computeLiveStatus(t1, now, dateKey),
+          stopsCount: (i - fromIdx + 1) + (leg2.toIdx - leg2.fromIdx + 1) - 1,
+          transfers: 1,
+          legs: [
+            {
+              train: t1,
+              origin,
+              destination: transferStation,
+              departTime: fromStop.depart,
+              arriveTime: transferStop.arrive,
+              durationMin: leg1ArriveAbs - leg1DepartAbs,
+              distanceKm: Math.round(leg1Distance),
+              delayMin,
+            },
+            {
+              train: leg2.train,
+              origin: transferStation,
+              destination,
+              departTime: leg2.depart,
+              arriveTime: leg2.arrive,
+              durationMin: leg2.arriveAbs - leg2.departAbs,
+              distanceKm: Math.round(leg2.distanceKm),
+              delayMin: delayForTrain(leg2.train.id, dateKey),
+            },
+          ],
+        });
+      }
+    }
+  }
+
+  return results
+    .sort((a, b) => a.departTime.localeCompare(b.departTime))
+    .slice(0, 40);
+}
+
+/**
+ * Cari perjalanan dari stasiun asal ke tujuan.
+ * Utamakan perjalanan langsung; bila tidak ada, tawarkan opsi 1x transit.
+ */
+export function searchJourneys(
+  originCode: string,
+  destCode: string,
+  now: Date,
+  dateKey: string,
+): JourneyOption[] {
+  const direct = directJourneys(originCode, destCode, now, dateKey);
+  if (direct.length > 0) return direct;
+  return transferJourneys(originCode, destCode, now, dateKey);
 }
 
 /** Semua stasiun yang dilayani sebuah kereta, sebagai objek Station. */
