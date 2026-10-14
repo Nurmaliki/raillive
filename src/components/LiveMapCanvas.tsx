@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { OPERATOR_META, type LiveStatus, type Operator, type Station } from "@/lib/types";
-import { snapToLine } from "@/lib/railLines";
+import { snapStationToRails, snapToLine } from "@/lib/railLines";
 
 /** Satu lin rute (digabung per lin, bukan per kereta) untuk digambar di peta. */
 export interface RouteLine {
@@ -157,14 +157,17 @@ export function LiveMapCanvas({
     };
   }, []);
 
-  /* ---------- 2. Titik stasiun ---------- */
+  /* ---------- 2. Titik stasiun (ditempel ke rel agar pas di jalur) ---------- */
   useEffect(() => {
     const L = LRef.current;
     const layer = stationLayerRef.current;
     if (!ready || !L || !layer) return;
     layer.clearLayers();
     for (const s of stations) {
-      L.circleMarker([s.lat, s.lng], {
+      // Koordinat stasiun di dataset bersifat perkiraan → tempel ke rel
+      // lin yang dilayaninya agar titik tepat berada di atas garis rute.
+      const [slat, slng] = snapStationToRails(s.lines, s.lat, s.lng);
+      L.circleMarker([slat, slng], {
         radius: 3,
         color: "#5b7099",
         weight: 1,

@@ -58,7 +58,9 @@ export function StationBoard({ stations }: { stations: Station[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="card p-4 sm:p-5">
+      {/* relative z-20: kartu filter harus menumpuk di atas kartu hasil, supaya
+          dropdown stasiun (yang berada di dalamnya) tidak tertimpa. */}
+      <div className="card relative z-20 p-4 sm:p-5">
         <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
           <StationPicker
             label="Stasiun"

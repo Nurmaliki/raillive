@@ -49,3 +49,31 @@ export function snapToLine(
   if (!rail) return [lat, lng];
   return nearestPointOnPath(rail, lat, lng);
 }
+
+/**
+ * Tempelkan koordinat STASIUN ke rel terdekat dari lin-lin yang dilayaninya.
+ *
+ * Koordinat stasiun di dataset bersifat perkiraan, sedangkan garis rute
+ * digambar dari geometri rel OpenStreetMap yang akurat. Tanpa penempelan ini
+ * titik stasiun tampak "melayang" di samping jalurnya. Bila stasiun dilayani
+ * beberapa lin, dipilih rel yang paling dekat.
+ */
+export function snapStationToRails(
+  lines: string[] | undefined,
+  lat: number,
+  lng: number,
+): LatLng {
+  let best: LatLng = [lat, lng];
+  let bestDist = Infinity;
+  for (const line of lines ?? []) {
+    const rail = lineRail(line);
+    if (!rail || rail.points.length < 2) continue;
+    const p = nearestPointOnPath(rail, lat, lng);
+    const d = (p[0] - lat) ** 2 + (p[1] - lng) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
+}
