@@ -1,6 +1,6 @@
 import { TRAINS, firstStop, lastStop } from "@/lib/data/trains";
 import { getStation, haversineKm } from "@/lib/data/stations";
-import { absoluteMinutes, toHHMM } from "@/lib/time";
+import { absoluteMinutes, jakartaMinutes, shiftDateKey, toHHMM } from "@/lib/time";
 import type {
   Departure,
   DepartureStatus,
@@ -99,9 +99,13 @@ export function computeLiveStatus(
   train: Train,
   now: Date,
   dateKey: string,
+  /** 1 = instance keberangkatan kemarin (untuk KA malam yang melewati tengah malam). */
+  dayDelta = 0,
 ): LiveStatus | null {
   const delayMin = delayForTrain(train.id, dateKey);
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  // Menit sejak tengah malam hari keberangkatan, menurut WIB. Bisa > 1440
+  // untuk perjalanan yang melewati tengah malam.
+  const nowMin = jakartaMinutes(now) + dayDelta * 1440;
 
   const origin = firstStop(train);
   const dest = lastStop(train);
@@ -213,16 +217,30 @@ export function computeLiveStatus(
   };
 }
 
-/** Status semua kereta yang sedang berjalan pada waktu tertentu. */
+/**
+ * Status semua kereta yang sedang berjalan pada waktu tertentu.
+ * Memeriksa instance keberangkatan hari ini DAN kemarin, sehingga KA malam
+ * yang melewati tengah malam tetap terpantau.
+ */
 export function computeAllLive(now: Date, dateKey: string): LiveStatus[] {
-  return TRAINS.map((t) => computeLiveStatus(t, now, dateKey)).filter(
-    (x): x is LiveStatus => x !== null,
-  );
+  const out: LiveStatus[] = [];
+  for (const train of TRAINS) {
+    const today = computeLiveStatus(train, now, dateKey, 0);
+    if (today) {
+      out.push(today);
+      continue;
+    }
+    // Coba instance keberangkatan kemarin (perjalanan lintas tengah malam).
+    const overnight = computeLiveStatus(train, now, shiftDateKey(dateKey, -1), 1);
+    if (overnight && overnight.status !== "arrived") out.push(overnight);
+  }
+  return out;
 }
 
 /**
  * Papan keberangkatan sebuah stasiun pada waktu tertentu.
  * Mengembalikan kereta yang berangkat dari stasiun tsb (bukan yang tiba).
+ * `dayDelta` > 0 memeriksa keberangkatan dari hari sebelumnya (KA malam).
  */
 export function departuresAt(
   stationCode: string,
@@ -231,47 +249,50 @@ export function departuresAt(
   windowMinutes = 240,
 ): Departure[] {
   const code = stationCode.toUpperCase();
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const nowMin = jakartaMinutes(now);
   const out: Departure[] = [];
 
-  for (const train of TRAINS) {
-    const idx = train.stops.findIndex((st) => st.stationCode === code);
-    if (idx === -1 || idx === train.stops.length - 1) continue; // stasiun terakhir tidak "berangkat"
-    const stop = train.stops[idx];
-    if (!stop.depart) continue;
+  for (let dayDelta = 0; dayDelta <= 1; dayDelta++) {
+    const key = shiftDateKey(dateKey, -dayDelta);
+    for (const train of TRAINS) {
+      const idx = train.stops.findIndex((st) => st.stationCode === code);
+      if (idx === -1 || idx === train.stops.length - 1) continue; // stasiun terakhir tidak "berangkat"
+      const stop = train.stops[idx];
+      if (!stop.depart) continue;
 
-    const delayMin = delayForTrain(train.id, dateKey);
-    const schedMin = absoluteMinutes(stop.depart, stop.dayOffset);
-    const actualMin = schedMin + delayMin;
+      const delayMin = delayForTrain(train.id, key);
+      const schedMin = absoluteMinutes(stop.depart, stop.dayOffset) + dayDelta * 1440;
+      const actualMin = schedMin + delayMin;
 
-    // Hanya tampilkan yang berangkat dalam rentang jendela waktu.
-    if (actualMin < nowMin - 30 || actualMin > nowMin + windowMinutes) continue;
+      // Hanya tampilkan yang berangkat dalam rentang jendela waktu.
+      if (actualMin < nowMin - 30 || actualMin > nowMin + windowMinutes) continue;
 
-    const destDef = lastStop(train);
-    const destStation = getStation(destDef.stationCode);
+      const destDef = lastStop(train);
+      const destStation = getStation(destDef.stationCode);
 
-    let status: DepartureStatus;
-    if (delayMin > 15) status = "delayed";
-    else if (actualMin <= nowMin) status = "departed";
-    else if (actualMin - nowMin <= 10) status = "boarding";
-    else status = delayMin > 0 ? "delayed" : "on-time";
+      let status: DepartureStatus;
+      if (delayMin > 15) status = "delayed";
+      else if (actualMin <= nowMin) status = "departed";
+      else if (actualMin - nowMin <= 10) status = "boarding";
+      else status = delayMin > 0 ? "delayed" : "on-time";
 
-    const hash = hashString(`${train.id}${code}${dateKey}`);
-    const platform = `${1 + (hash % 6)}`;
+      const hash = hashString(`${train.id}${code}${key}`);
+      const platform = `${1 + (hash % 6)}`;
 
-    out.push({
-      trainId: train.id,
-      trainNumber: train.number,
-      trainName: train.name,
-      operator: train.operator,
-      destination: destDef.stationCode,
-      destinationName: destStation?.name ?? destDef.stationCode,
-      scheduled: stop.depart,
-      actual: toHHMM(actualMin),
-      delayMin,
-      platform,
-      status,
-    });
+      out.push({
+        trainId: train.id,
+        trainNumber: train.number,
+        trainName: train.name,
+        operator: train.operator,
+        destination: destDef.stationCode,
+        destinationName: destStation?.name ?? destDef.stationCode,
+        scheduled: stop.depart,
+        actual: toHHMM(actualMin),
+        delayMin,
+        platform,
+        status,
+      });
+    }
   }
 
   return out.sort((a, b) => a.actual.localeCompare(b.actual));
