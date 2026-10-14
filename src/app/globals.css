@@ -82,6 +82,68 @@ body {
 }
 .fade-up { animation: fade-up 0.35s ease both; }
 
+/* ---------- Peta Leaflet (tema gelap) ---------- */
+.leaflet-container {
+  background: #0a0f1a;
+  font-family: inherit;
+}
+.leaflet-container a {
+  color: #7cc4f0;
+}
+/* Tooltip gelap agar menyatu dengan tema aplikasi. */
+.leaflet-tooltip.rl-tip {
+  background: #0e1626;
+  border: 1px solid #22314f;
+  border-radius: 8px;
+  color: #eef2f9;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 5px 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.leaflet-tooltip.rl-tip::before {
+  border-top-color: #22314f;
+}
+.leaflet-tooltip.rl-tip-strong {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+/* Sorotan kereta terpilih: cincin berdenyut. */
+.rl-sel-wrap { background: none; border: none; }
+.rl-sel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 9999px;
+  border: 2px solid var(--c, #38bdf8);
+  animation: rl-sel-pulse 1.6s ease-out infinite;
+}
+@keyframes rl-sel-pulse {
+  0% { transform: scale(0.7); opacity: 0.95; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+/* Atribusi Leaflet sedikit diperkecil agar tidak mengganggu. */
+.leaflet-control-attribution {
+  background: rgba(7, 11, 20, 0.7) !important;
+  color: #6b7c9c !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: #7cc4f0 !important; }
+.leaflet-bar a {
+  background: #0e1626 !important;
+  color: #eef2f9 !important;
+  border-color: #22314f !important;
+}
+.leaflet-bar a:hover { background: #16223a !important; }
+/* Naikkan kontras label nama tempat pada basemap gelap. */
+.rl-labels {
+  filter: brightness(1.9) contrast(1.15);
+  mix-blend-mode: screen;
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #24324f; border-radius: 8px; }

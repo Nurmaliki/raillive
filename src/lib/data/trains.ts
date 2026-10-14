@@ -213,6 +213,8 @@ function buildTrip(
   departMin: number,
   seq: number,
   dirLabel: string,
+  /** Penanda arah unik ("a" = maju, "b" = balik) agar ID tidak bertabrakan. */
+  dirTag: string,
 ): Train {
   const trainStops: Stop[] = stops.map((st, i) => {
     const isFirst = i === 0;
@@ -231,7 +233,7 @@ function buildTrip(
 
   const num = `${spec.number}${pad(seq)}`;
   return {
-    id: `${spec.id}-${dirLabel.toLowerCase()}-${pad(seq)}`,
+    id: `${spec.id}-${dirTag}-${pad(seq)}`,
     number: num,
     name: `${spec.name}${dirLabel ? ` (${dirLabel})` : ""}`,
     operator: spec.operator,
@@ -251,8 +253,8 @@ function generateLine(spec: LineSpec): Train[] {
 
   let seq = 1;
   for (let t = spec.startMin; t <= spec.endMin; t += spec.headway) {
-    out.push(buildTrip(spec, spec.stops, t, seq, ""));
-    out.push(buildTrip(spec, backward, t, seq, spec.reverseName ?? ""));
+    out.push(buildTrip(spec, spec.stops, t, seq, "", "a"));
+    out.push(buildTrip(spec, backward, t, seq, spec.reverseName ?? "", "b"));
     seq++;
   }
   return out;

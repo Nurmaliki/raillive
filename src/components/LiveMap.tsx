@@ -1,13 +1,32 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useLivePolling } from "@/lib/useLivePolling";
-import { computeBounds, project } from "@/lib/geo";
 import { LiveBadge, LineBadge, OperatorBadge } from "@/components/Badges";
-import { KRL_LINE_ORDER, LINE_META, OPERATOR_META, type LiveStatus, type Operator, type Station, type Train } from "@/lib/types";
+import type { RouteLine } from "@/components/LiveMapCanvas";
+import {
+  KRL_LINE_ORDER,
+  LINE_META,
+  OPERATOR_META,
+  type LiveStatus,
+  type Operator,
+  type Station,
+  type Train,
+} from "@/lib/types";
 
-const W = 1000;
-const H = 720;
+/** Kanvas peta memakai Leaflet (butuh DOM) → hanya di klien. */
+const LiveMapCanvas = dynamic(
+  () => import("@/components/LiveMapCanvas").then((m) => m.LiveMapCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[420px] w-full items-center justify-center bg-[#0a0f1a] text-sm text-muted sm:h-[520px] lg:h-[600px]">
+        Memuat peta…
+      </div>
+    ),
+  },
+);
 
 interface LiveResponse {
   trains: LiveStatus[];
@@ -27,10 +46,10 @@ export function LiveMap({
 }) {
   const [selected, setSelected] = useState<string | null>(initialTrain ?? null);
   const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("KRL");
+  const [lineFilter, setLineFilter] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
 
-  // Sinkronkan pilihan bila URL berubah (pola resmi React: menyesuaikan state
-  // saat render, bukan di dalam effect — menghindari render berantai).
+  // Sinkronkan pilihan bila URL berubah (menyesuaikan state saat render).
   const [prevInitialTrain, setPrevInitialTrain] = useState(initialTrain);
   if (initialTrain !== prevInitialTrain) {
     setPrevInitialTrain(initialTrain);
@@ -47,30 +66,92 @@ export function LiveMap({
     [stations],
   );
 
-  const bounds = useMemo(() => computeBounds(stations), [stations]);
+  /**
+   * Garis rute: digabung per lin (KRL/MRT/LRT) memakai susunan perhentian
+   * terlengkap, sedangkan KA antarkota digambar per kereta (rutenya berbeda).
+   * Membangun dari jadwal (bukan posisi live) → garis tetap utuh & mulus.
+   */
+  const routes = useMemo<RouteLine[]>(() => {
+    const byLine = new Map<string, { operator: Operator; line: string; stops: string[] }>();
+    const kaiRoutes: RouteLine[] = [];
 
-  /** Segmen rute untuk digambar sebagai polyline. */
-  const routes = useMemo(() => {
-    return trains.map((t) => ({
-      id: t.id,
-      operator: t.operator,
-      line: t.line,
-      points: t.stops
-        .map((st) => stationByCode.get(st.stationCode))
-        .filter((s): s is Station => Boolean(s))
-        .map((s) => project(s.lat, s.lng, bounds, W, H)),
-    }));
-  }, [trains, stationByCode, bounds]);
+    for (const t of trains) {
+      const codes = t.stops
+        .map((st) => st.stationCode)
+        .filter((c) => stationByCode.has(c));
+      if (codes.length < 2) continue;
+
+      if (t.line) {
+        const prev = byLine.get(t.line);
+        if (!prev || codes.length > prev.stops.length) {
+          byLine.set(t.line, { operator: t.operator, line: t.line, stops: codes });
+        }
+      } else {
+        kaiRoutes.push({
+          key: `kai-${t.id}`,
+          operator: t.operator,
+          color: OPERATOR_META[t.operator].color,
+          path: codes.map((c) => {
+            const s = stationByCode.get(c)!;
+            return [s.lat, s.lng] as [number, number];
+          }),
+        });
+      }
+    }
+
+    const lineRoutes: RouteLine[] = [];
+    for (const [line, v] of byLine) {
+      lineRoutes.push({
+        key: line,
+        operator: v.operator,
+        line,
+        color: LINE_META[line]?.color ?? OPERATOR_META[v.operator].color,
+        path: v.stops.map((c) => {
+          const s = stationByCode.get(c)!;
+          return [s.lat, s.lng] as [number, number];
+        }),
+      });
+    }
+    return [...lineRoutes, ...kaiRoutes];
+  }, [trains, stationByCode]);
 
   const liveTrains = useMemo(() => {
     const list = data?.trains ?? [];
-    return operatorFilter === "all"
-      ? list
-      : list.filter((t) => t.operator === operatorFilter);
-  }, [data, operatorFilter]);
+    const filtered = list.filter((t) => {
+      if (operatorFilter !== "all" && t.operator !== operatorFilter) return false;
+      if (lineFilter && t.line !== lineFilter) return false;
+      return true;
+    });
+    // Kereta yang bergerak dulu, lalu terlambat, lalu yang belum berangkat/tiba.
+    const rank = (t: LiveStatus) => {
+      if (t.status === "delayed") return 0;
+      if (t.status === "on-time") return 1;
+      if (t.status === "not-started") return 2;
+      return 3; // arrived / cancelled
+    };
+    return [...filtered].sort(
+      (a, b) => rank(a) - rank(b) || b.delayMin - a.delayMin || a.trainName.localeCompare(b.trainName),
+    );
+  }, [data, operatorFilter, lineFilter]);
 
   const moving = liveTrains.filter((t) => t.status !== "not-started" && t.status !== "arrived");
   const selectedTrain = liveTrains.find((t) => t.trainId === selected) ?? null;
+
+  /** Penanda di peta: sembunyikan yang sudah tiba (kecuali sedang dipilih). */
+  const mapTrains = useMemo(
+    () =>
+      liveTrains.filter(
+        (t) => t.status !== "arrived" || t.trainId === selected,
+      ),
+    [liveTrains, selected],
+  );
+
+  /** Kunci rute yang terlihat → menentukan area fokus peta. */
+  const focusKeys = useMemo(() => {
+    if (lineFilter) return [lineFilter];
+    if (operatorFilter === "all") return routes.map((r) => r.key);
+    return routes.filter((r) => r.operator === operatorFilter).map((r) => r.key);
+  }, [routes, lineFilter, operatorFilter]);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
@@ -85,7 +166,10 @@ export function LiveMap({
           <div className="flex items-center gap-2">
             <select
               value={operatorFilter}
-              onChange={(e) => setOperatorFilter(e.target.value as Operator | "all")}
+              onChange={(e) => {
+                setOperatorFilter(e.target.value as Operator | "all");
+                setLineFilter(null);
+              }}
               className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs outline-none"
             >
               <option value="all">Semua operator</option>
@@ -105,143 +189,81 @@ export function LiveMap({
         </div>
 
         <div className="relative">
-          <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Peta kereta live">
-            <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2740" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width={W} height={H} fill="url(#grid)" />
+          <LiveMapCanvas
+            stations={stations}
+            routes={routes}
+            focusKeys={focusKeys}
+            trains={mapTrains}
+            selected={selected}
+            hovered={hover}
+            activeLine={selectedTrain?.line ?? null}
+            lineFilter={lineFilter}
+            onSelect={setSelected}
+            onHover={setHover}
+          />
 
-            {/* Rute */}
-            {routes.map((r) => {
-              const isSel = selected === r.id;
-              const dim = operatorFilter !== "all" && r.operator !== operatorFilter;
-              const color = (r.line && LINE_META[r.line]?.color) || OPERATOR_META[r.operator].color;
-              return (
-                <polyline
-                  key={r.id}
-                  points={r.points.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={isSel ? 3.5 : 1.6}
-                  strokeOpacity={dim ? 0.06 : isSel ? 0.95 : 0.28}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              );
-            })}
-
-            {/* Stasiun */}
-            {stations.map((s) => {
-              const p = project(s.lat, s.lng, bounds, W, H);
-              return (
-                <g key={s.code}>
-                  <circle cx={p.x} cy={p.y} r={3.2} fill="#0e1626" stroke="#4b5f85" strokeWidth="1.4" />
-                  <text
-                    x={p.x + 7}
-                    y={p.y + 3.5}
-                    fontSize="11"
-                    fill="#93a2bd"
-                    className="pointer-events-none select-none"
-                  >
-                    {s.code}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Kereta */}
-            {liveTrains.map((t) => {
-              const p = project(t.position.lat, t.position.lng, bounds, W, H);
-              const meta = OPERATOR_META[t.operator];
-              const color = (t.line && LINE_META[t.line]?.color) || meta.color;
-              const isSel = selected === t.trainId;
-              const isHover = hover === t.trainId;
-              const active = isSel || isHover;
-              return (
-                <g
-                  key={t.trainId}
-                  className="cursor-pointer"
-                  onClick={() => setSelected(t.trainId)}
-                  onMouseEnter={() => setHover(t.trainId)}
-                  onMouseLeave={() => setHover(null)}
-                >
-                  {(t.status === "on-time" || t.status === "delayed") && (
-                    <circle cx={p.x} cy={p.y} r={14} fill={color} opacity={0.18}>
-                      <animate
-                        attributeName="r"
-                        values="9;18;9"
-                        dur="2.4s"
-                        repeatCount="indefinite"
-                      />
-                    </circle>
-                  )}
-                  <g
-                    className="train-marker"
-                    style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
-                  >
-                    <circle
-                      r={active ? 8 : 6}
-                      fill={color}
-                      stroke="#070b14"
-                      strokeWidth="2"
-                    />
-                    <circle r={active ? 3 : 2} fill="#070b14" />
-                  </g>
-                  {(active || isSel) && (
-                    <g className="pointer-events-none">
-                      <rect
-                        x={p.x + 12}
-                        y={p.y - 22}
-                        width={Math.max(120, t.trainName.length * 7)}
-                        height="40"
-                        rx="8"
-                        fill="#0e1626"
-                        stroke={color}
-                        strokeWidth="1"
-                        opacity="0.98"
-                      />
-                      <text x={p.x + 22} y={p.y - 6} fontSize="12" fontWeight="700" fill="#eef2f9">
-                        {t.trainName}
-                      </text>
-                      <text x={p.x + 22} y={p.y + 10} fontSize="11" fill="#93a2bd">
-                        {t.lastStationName} → {t.nextStationName ?? "akhir"}
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-
-          <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-border bg-surface/90 px-3 py-2 text-xs text-muted">
+          <div className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-2 text-xs text-muted">
             {lastUpdated
               ? `Diperbarui ${lastUpdated.toLocaleTimeString("id-ID")}`
               : "Menunggu data…"}
             {error && <span className="ml-2 text-red-400">· {error}</span>}
           </div>
+
+          {lineFilter && (
+            <button
+              onClick={() => setLineFilter(null)}
+              className="absolute right-3 top-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-xs transition hover:border-brand/50"
+            >
+              {LINE_META[lineFilter]?.name ?? "Lin"} ✕
+            </button>
+          )}
         </div>
 
-        {/* Legenda lin KRL */}
-        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border px-4 py-3">
-          {KRL_LINE_ORDER.map((id) => (
-            <span key={id} className="flex items-center gap-2 text-xs text-muted">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: LINE_META[id].color }}
-              />
-              {LINE_META[id].name}
-            </span>
-          ))}
-          <span className="flex items-center gap-2 text-xs text-muted">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: OPERATOR_META.MRT.color }} />
-            MRT
-          </span>
-          <span className="flex items-center gap-2 text-xs text-muted">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: OPERATOR_META.LRT.color }} />
-            LRT
-          </span>
+        {/* Legenda lin — klik untuk menyorot/menyaring */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+          <span className="mr-1 text-[11px] uppercase tracking-wider text-muted">Lin</span>
+          {KRL_LINE_ORDER.map((id) => {
+            const active = lineFilter === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setLineFilter(active ? null : id)}
+                className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition ${
+                  active
+                    ? "border-transparent text-white"
+                    : "border-border text-muted hover:border-brand/40"
+                }`}
+                style={active ? { backgroundColor: LINE_META[id].color } : undefined}
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: LINE_META[id].color }}
+                />
+                {LINE_META[id].name}
+              </button>
+            );
+          })}
+          {(["mrt", "lrt-bekasi", "lrt-cibubur"] as const).map((id) => {
+            const active = lineFilter === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setLineFilter(active ? null : id)}
+                className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition ${
+                  active
+                    ? "border-transparent text-white"
+                    : "border-border text-muted hover:border-brand/40"
+                }`}
+                style={active ? { backgroundColor: LINE_META[id].color } : undefined}
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: LINE_META[id].color }}
+                />
+                {LINE_META[id].name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -253,9 +275,7 @@ export function LiveMap({
         </div>
         <ul className="max-h-[720px] space-y-2 overflow-auto pr-1">
           {liveTrains.length === 0 && (
-            <li className="card p-4 text-sm text-muted">
-              Tidak ada kereta untuk filter ini.
-            </li>
+            <li className="card p-4 text-sm text-muted">Tidak ada kereta untuk filter ini.</li>
           )}
           {liveTrains.map((t) => (
             <li key={t.trainId}>
@@ -330,27 +350,15 @@ export function LiveMap({
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             <Detail label="Dari" value={selectedTrain.originName} />
             <Detail label="Tujuan" value={selectedTrain.destinationName} />
-            <Detail
-              label="Posisi terakhir"
-              value={selectedTrain.lastStationName}
-            />
-            <Detail
-              label="Stasiun berikutnya"
-              value={selectedTrain.nextStationName ?? "—"}
-            />
+            <Detail label="Posisi terakhir" value={selectedTrain.lastStationName} />
+            <Detail label="Stasiun berikutnya" value={selectedTrain.nextStationName ?? "—"} />
             <Detail
               label="Keterlambatan"
               value={selectedTrain.delayMin > 0 ? `+${selectedTrain.delayMin} menit` : "Tepat waktu"}
             />
-            <Detail
-              label="ETA berikutnya"
-              value={selectedTrain.etaNext ?? "—"}
-            />
+            <Detail label="ETA berikutnya" value={selectedTrain.etaNext ?? "—"} />
             <Detail label="Kecepatan" value={`${selectedTrain.speedKmh} km/jam`} />
-            <Detail
-              label="Progres"
-              value={`${Math.round(selectedTrain.progress * 100)}%`}
-            />
+            <Detail label="Progres" value={`${Math.round(selectedTrain.progress * 100)}%`} />
           </div>
 
           <p className="mt-4 text-xs text-muted">
