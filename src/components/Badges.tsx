@@ -1,4 +1,4 @@
-import { OPERATOR_META, type DepartureStatus, type LiveStatusKind, type Operator } from "@/lib/types";
+import { LINE_META, OPERATOR_META, type DepartureStatus, type LiveStatusKind, type Operator } from "@/lib/types";
 
 export function OperatorBadge({ operator }: { operator: Operator }) {
   const meta = OPERATOR_META[operator];
@@ -8,6 +8,25 @@ export function OperatorBadge({ operator }: { operator: Operator }) {
       style={{ backgroundColor: `${meta.color}22`, color: meta.color }}
     >
       {meta.short}
+    </span>
+  );
+}
+
+/** Lencana lin berwarna (mis. "Lin Bogor") untuk KRL/MRT/LRT. */
+export function LineBadge({ line, showName = false }: { line: string; showName?: boolean }) {
+  const meta = LINE_META[line];
+  if (!meta) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide"
+      style={{ backgroundColor: `${meta.color}22`, color: meta.color }}
+      title={meta.name}
+    >
+      <span
+        className="inline-block h-2 w-2 rounded-full"
+        style={{ backgroundColor: meta.color }}
+      />
+      {showName ? meta.name : meta.short}
     </span>
   );
 }

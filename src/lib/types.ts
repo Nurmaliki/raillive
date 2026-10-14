@@ -19,6 +19,32 @@ export const OPERATOR_META: Record<
   LRT: { label: "LRT Jabodebek", short: "LRT", color: "#8b5cf6" },
 };
 
+/** Metadata sebuah lin layanan (KRL/MRT/LRT), untuk label & warna. */
+export interface LineInfo {
+  name: string;
+  short: string;
+  color: string;
+  operator: Operator;
+}
+
+/**
+ * Peta lin -> metadata. Kode lin dipakai di `Station.lines` dan `Train.line`.
+ * Warna mengikuti peta resmi KAI Commuter / MRT / LRT.
+ */
+export const LINE_META: Record<string, LineInfo> = {
+  bogor: { name: "Lin Bogor", short: "B", color: "#ec2329", operator: "KRL" },
+  cikarang: { name: "Lin Cikarang", short: "C", color: "#26baed", operator: "KRL" },
+  rangkasbitung: { name: "Lin Rangkasbitung", short: "R", color: "#99ca3e", operator: "KRL" },
+  tangerang: { name: "Lin Tangerang", short: "T", color: "#c25f28", operator: "KRL" },
+  priok: { name: "Lin Tanjung Priok", short: "TP", color: "#ef509a", operator: "KRL" },
+  mrt: { name: "MRT Jakarta", short: "M", color: "#0ea5e9", operator: "MRT" },
+  "lrt-bekasi": { name: "LRT Lin Bekasi", short: "L1", color: "#8b5cf6", operator: "LRT" },
+  "lrt-cibubur": { name: "LRT Lin Cibubur", short: "L2", color: "#a855f7", operator: "LRT" },
+};
+
+/** Urutan tampil lin KRL (untuk legenda & filter). */
+export const KRL_LINE_ORDER = ["bogor", "cikarang", "tangerang", "rangkasbitung", "priok"];
+
 export interface Station {
   /** Kode stasiun, mis. "GMR". */
   code: string;
@@ -26,6 +52,8 @@ export interface Station {
   city: string;
   /** Operator yang melayani stasiun ini. */
   operators: Operator[];
+  /** Kode lin yang melewati stasiun ini (mis. ["bogor"]). */
+  lines?: string[];
   lat: number;
   lng: number;
 }
@@ -48,6 +76,8 @@ export interface Train {
   name: string;
   operator: Operator;
   serviceClass: string;
+  /** Kode lin (mis. "bogor") untuk KRL/MRT/LRT. */
+  line?: string;
   stops: Stop[];
 }
 
@@ -64,6 +94,8 @@ export interface Departure {
   trainNumber: string;
   trainName: string;
   operator: Operator;
+  /** Kode lin (mis. "bogor") untuk KRL/MRT/LRT. */
+  line?: string;
   destination: string;
   destinationName: string;
   /** Jam terjadwal "HH:mm". */
@@ -88,6 +120,8 @@ export interface LiveStatus {
   trainNumber: string;
   trainName: string;
   operator: Operator;
+  /** Kode lin (mis. "bogor") untuk KRL/MRT/LRT. */
+  line?: string;
   origin: string;
   originName: string;
   destination: string;

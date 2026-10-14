@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { StationPicker } from "@/components/StationPicker";
-import { OperatorBadge, DelayChip } from "@/components/Badges";
+import { OperatorBadge, DelayChip, LineBadge } from "@/components/Badges";
 import { addFavorite, useFavorites } from "@/lib/favorites";
 import { formatDuration } from "@/lib/time";
 import { useToday } from "@/lib/useLivePolling";
@@ -18,8 +18,9 @@ interface SearchResponse {
 }
 
 export function SearchClient({ stations }: { stations: Station[] }) {
-  const [origin, setOrigin] = useState("GMR");
-  const [destination, setDestination] = useState("SB");
+  // Default rute KRL yang populer (Manggarai → Bogor).
+  const [origin, setOrigin] = useState("MRI");
+  const [destination, setDestination] = useState("BOG");
   const [dateInput, setDateInput] = useState("");
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -121,6 +122,7 @@ export function SearchClient({ stations }: { stations: Station[] }) {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <OperatorBadge operator={j.train.operator} />
+                      {j.train.line && <LineBadge line={j.train.line} />}
                       <div>
                         <p className="font-semibold">{j.train.name}</p>
                         <p className="text-xs text-muted">

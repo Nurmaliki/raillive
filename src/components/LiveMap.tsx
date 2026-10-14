@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useLivePolling } from "@/lib/useLivePolling";
 import { computeBounds, project } from "@/lib/geo";
-import { LiveBadge, OperatorBadge } from "@/components/Badges";
-import { OPERATOR_META, type LiveStatus, type Operator, type Station, type Train } from "@/lib/types";
+import { LiveBadge, LineBadge, OperatorBadge } from "@/components/Badges";
+import { KRL_LINE_ORDER, LINE_META, OPERATOR_META, type LiveStatus, type Operator, type Station, type Train } from "@/lib/types";
 
 const W = 1000;
 const H = 720;
@@ -26,7 +26,7 @@ export function LiveMap({
   initialTrain?: string;
 }) {
   const [selected, setSelected] = useState<string | null>(initialTrain ?? null);
-  const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("all");
+  const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("KRL");
   const [hover, setHover] = useState<string | null>(null);
 
   // Sinkronkan pilihan bila URL berubah (pola resmi React: menyesuaikan state
@@ -54,6 +54,7 @@ export function LiveMap({
     return trains.map((t) => ({
       id: t.id,
       operator: t.operator,
+      line: t.line,
       points: t.stops
         .map((st) => stationByCode.get(st.stationCode))
         .filter((s): s is Station => Boolean(s))
@@ -116,12 +117,13 @@ export function LiveMap({
             {routes.map((r) => {
               const isSel = selected === r.id;
               const dim = operatorFilter !== "all" && r.operator !== operatorFilter;
+              const color = (r.line && LINE_META[r.line]?.color) || OPERATOR_META[r.operator].color;
               return (
                 <polyline
                   key={r.id}
                   points={r.points.map((p) => `${p.x},${p.y}`).join(" ")}
                   fill="none"
-                  stroke={OPERATOR_META[r.operator].color}
+                  stroke={color}
                   strokeWidth={isSel ? 3.5 : 1.6}
                   strokeOpacity={dim ? 0.06 : isSel ? 0.95 : 0.28}
                   strokeLinecap="round"
@@ -153,6 +155,7 @@ export function LiveMap({
             {liveTrains.map((t) => {
               const p = project(t.position.lat, t.position.lng, bounds, W, H);
               const meta = OPERATOR_META[t.operator];
+              const color = (t.line && LINE_META[t.line]?.color) || meta.color;
               const isSel = selected === t.trainId;
               const isHover = hover === t.trainId;
               const active = isSel || isHover;
@@ -165,7 +168,7 @@ export function LiveMap({
                   onMouseLeave={() => setHover(null)}
                 >
                   {(t.status === "on-time" || t.status === "delayed") && (
-                    <circle cx={p.x} cy={p.y} r={14} fill={meta.color} opacity={0.18}>
+                    <circle cx={p.x} cy={p.y} r={14} fill={color} opacity={0.18}>
                       <animate
                         attributeName="r"
                         values="9;18;9"
@@ -180,7 +183,7 @@ export function LiveMap({
                   >
                     <circle
                       r={active ? 8 : 6}
-                      fill={meta.color}
+                      fill={color}
                       stroke="#070b14"
                       strokeWidth="2"
                     />
@@ -195,7 +198,7 @@ export function LiveMap({
                         height="40"
                         rx="8"
                         fill="#0e1626"
-                        stroke={meta.color}
+                        stroke={color}
                         strokeWidth="1"
                         opacity="0.98"
                       />
@@ -220,17 +223,25 @@ export function LiveMap({
           </div>
         </div>
 
-        {/* Legenda operator */}
-        <div className="flex flex-wrap gap-4 border-t border-border px-4 py-3">
-          {(Object.keys(OPERATOR_META) as Operator[]).map((op) => (
-            <span key={op} className="flex items-center gap-2 text-xs text-muted">
+        {/* Legenda lin KRL */}
+        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border px-4 py-3">
+          {KRL_LINE_ORDER.map((id) => (
+            <span key={id} className="flex items-center gap-2 text-xs text-muted">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: OPERATOR_META[op].color }}
+                style={{ backgroundColor: LINE_META[id].color }}
               />
-              {OPERATOR_META[op].label}
+              {LINE_META[id].name}
             </span>
           ))}
+          <span className="flex items-center gap-2 text-xs text-muted">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: OPERATOR_META.MRT.color }} />
+            MRT
+          </span>
+          <span className="flex items-center gap-2 text-xs text-muted">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: OPERATOR_META.LRT.color }} />
+            LRT
+          </span>
         </div>
       </div>
 
@@ -259,6 +270,7 @@ export function LiveMap({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <OperatorBadge operator={t.operator} />
+                    {t.line && <LineBadge line={t.line} />}
                     <span className="text-sm font-semibold">{t.trainName}</span>
                   </div>
                   <LiveBadge status={t.status} />
@@ -271,7 +283,8 @@ export function LiveMap({
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${Math.round(t.progress * 100)}%`,
-                      backgroundColor: OPERATOR_META[t.operator].color,
+                      backgroundColor:
+                        (t.line && LINE_META[t.line]?.color) || OPERATOR_META[t.operator].color,
                     }}
                   />
                 </div>
@@ -297,6 +310,7 @@ export function LiveMap({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <OperatorBadge operator={selectedTrain.operator} />
+              {selectedTrain.line && <LineBadge line={selectedTrain.line} showName />}
               <div>
                 <h3 className="text-lg font-bold">{selectedTrain.trainName}</h3>
                 <p className="text-xs text-muted">KA {selectedTrain.trainNumber}</p>

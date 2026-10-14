@@ -1,26 +1,26 @@
 import Link from "next/link";
 import { TRAINS } from "@/lib/data/trains";
 import { STATIONS } from "@/lib/data/stations";
-import { OPERATOR_META, type Operator } from "@/lib/types";
+import { KRL_LINE_ORDER, LINE_META, OPERATOR_META, type Operator } from "@/lib/types";
 
 const FEATURES = [
+  {
+    href: "/stasiun",
+    icon: "🕒",
+    title: "Papan Stasiun",
+    desc: "Papan keberangkatan real-time per stasiun KRL, lengkap dengan lin, peron, dan status delay.",
+  },
   {
     href: "/jadwal",
     icon: "🔎",
     title: "Cari Jadwal",
-    desc: "Cari perjalanan antar stasiun, lengkap dengan durasi, jarak, dan harga mulai.",
+    desc: "Cari perjalanan KRL antar stasiun, lengkap dengan durasi, jarak, dan jam berangkat.",
   },
   {
     href: "/live",
     icon: "🗺️",
     title: "Peta Live",
-    desc: "Lihat posisi setiap kereta di peta, progres perjalanan, dan status delay.",
-  },
-  {
-    href: "/stasiun",
-    icon: "🕒",
-    title: "Papan Stasiun",
-    desc: "Papan keberangkatan real-time per stasiun, termasuk peron dan status.",
+    desc: "Lihat posisi setiap KRL di peta, progres perjalanan, dan status keterlambatan.",
   },
   {
     href: "/favorit",
@@ -36,28 +36,32 @@ export default function Home() {
     return acc;
   }, {});
 
+  const krlStations = STATIONS.filter((s) => (s.lines?.length ?? 0) > 0);
+  const krlTrips = TRAINS.filter((t) => t.operator === "KRL").length;
+
   return (
     <div className="space-y-12">
       <section className="fade-up pt-6 text-center">
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-xs text-muted">
-          <span className="pulse-dot" /> Data real-time · KAI · KRL · MRT · LRT
+          <span className="pulse-dot" /> Real-time · KRL Commuter Jabodetabek · MRT · LRT · KAI
         </span>
         <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-          Jadwal &amp; posisi kereta Indonesia,{" "}
+          Jadwal &amp; posisi{" "}
           <span className="bg-gradient-to-r from-brand to-brand-2 bg-clip-text text-transparent">
-            dalam satu layar
-          </span>
+            KRL Jabodetabek
+          </span>{" "}
+          dalam satu layar
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted">
           Pantau keberangkatan, keterlambatan, dan posisi kereta secara real-time —
-          dari Argo Bromo Anggrek sampai MRT Jakarta.
+          fokus KRL Commuter Line (5 lin), plus MRT Jakarta dan LRT Jabodebek.
         </p>
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Link
-            href="/jadwal"
+            href="/stasiun"
             className="rounded-xl bg-gradient-to-r from-brand to-brand-2 px-6 py-3 font-semibold text-slate-950 shadow-lg shadow-brand/20 transition hover:opacity-90"
           >
-            Cari Jadwal Kereta
+            Buka Papan Stasiun
           </Link>
           <Link
             href="/live"
@@ -69,10 +73,51 @@ export default function Home() {
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat value={String(STATIONS.length)} label="Stasiun" />
-        <Stat value={String(TRAINS.length)} label="Rute kereta" />
-        <Stat value="4" label="Operator" />
+        <Stat value={String(krlStations.length)} label="Stasiun KRL/MRT/LRT" />
+        <Stat value={String(krlTrips)} label="Perjalanan KRL" />
+        <Stat value="5" label="Lin KRL" />
         <Stat value="15s" label="Interval update" />
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-xl font-bold">Lin KRL Commuter Jabodetabek</h2>
+        <p className="mb-4 text-sm text-muted">
+          Lima lin resmi. Klik salah satu untuk melihat papan keberangkatannya.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {KRL_LINE_ORDER.map((id) => {
+            const meta = LINE_META[id];
+            const trains = TRAINS.filter((t) => t.line === id);
+            const stops = new Set(trains.flatMap((t) => t.stops.map((s) => s.stationCode)));
+            const termini = stops.size
+              ? [Array.from(stops)[0], Array.from(stops).at(-1)]
+              : [];
+            return (
+              <Link
+                key={id}
+                href="/stasiun"
+                className="card group p-4 transition hover:border-brand/50 hover:bg-surface-2/50"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-3 w-3 rounded-full"
+                    style={{ backgroundColor: meta.color }}
+                  />
+                  <span className="font-semibold group-hover:text-brand">{meta.name}</span>
+                </div>
+                <p className="mt-2 text-sm text-muted">
+                  {stops.size} stasiun · {trains.length} perjalanan
+                </p>
+                {termini.length === 2 && (
+                  <p className="mt-1 text-xs text-muted">
+                    {STATIONS.find((s) => s.code === termini[0])?.name} ↔{" "}
+                    {STATIONS.find((s) => s.code === termini[1])?.name}
+                  </p>
+                )}
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
       <section>
@@ -106,7 +151,7 @@ export default function Home() {
                   {meta.short}
                 </span>
                 <p className="mt-3 font-semibold">{meta.label}</p>
-                <p className="text-sm text-muted">{counts[op] ?? 0} rute terdaftar</p>
+                <p className="text-sm text-muted">{counts[op] ?? 0} perjalanan terdaftar</p>
               </div>
             );
           })}
