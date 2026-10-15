@@ -1,4 +1,5 @@
 import type { Operator, Stop, Train } from "@/lib/types";
+import { TANGERANG_TRIPS } from "@/lib/data/tangerangTimetable";
 
 /**
  * Definisi rute kereta. Jam dalam format "HH:mm" waktu lokal (WIB).
@@ -382,30 +383,6 @@ const KRL_LINES: LineSpec[] = [
     headway: 40,
   },
   {
-    id: "krl-tangerang",
-    line: "tangerang",
-    name: "KRL Lin Tangerang",
-    number: "T",
-    operator: "KRL",
-    serviceClass: "Commuter",
-    stops: [
-      { code: "DU", at: 0 },
-      { code: "GRG", at: 3 },
-      { code: "PSG", at: 5 },
-      { code: "TKO", at: 7 },
-      { code: "BJI", at: 9 },
-      { code: "RWB", at: 12 },
-      { code: "KDS", at: 15 },
-      { code: "POR", at: 18 },
-      { code: "BTP", at: 20 },
-      { code: "TTI", at: 22 },
-      { code: "TNG", at: 25 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 30,
-  },
-  {
     id: "krl-rangkasbitung",
     line: "rangkasbitung",
     name: "KRL Lin Rangkasbitung",
@@ -517,6 +494,9 @@ const LRT_LINES: LineSpec[] = [
 export const TRAINS: Train[] = [
   ...KAI_TRAINS,
   ...KRL_LINES.flatMap(generateLine),
+  // Lin Tangerang memakai jadwal NYATA GAPEKA 2026 (bukan pola headway seragam),
+  // sehingga jam keberangkatan peron persis seperti papan stasiun.
+  ...TANGERANG_TRIPS,
   ...MRT_LINES.flatMap(generateLine),
   ...LRT_LINES.flatMap(generateLine),
 ];
