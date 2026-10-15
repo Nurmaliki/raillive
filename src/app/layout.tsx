@@ -46,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <footer className="border-t border-border/60 py-6 text-center text-xs text-muted">
-          RailLive · sumber data {provider.isMock ? "simulasi" : provider.name} · dibuat
+          RailLive · jadwal {provider.isMock ? "simulasi" : provider.name} · dibuat
           dengan Next.js, siap deploy ke Vercel
         </footer>
       </body>

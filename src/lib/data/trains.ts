@@ -1,5 +1,6 @@
 import type { Operator, Stop, Train } from "@/lib/types";
 import { TANGERANG_TRIPS } from "@/lib/data/tangerangTimetable";
+import { KRL_REAL_TRIPS } from "@/lib/data/krlRealTimetable";
 
 /**
  * Definisi rute kereta. Jam dalam format "HH:mm" waktu lokal (WIB).
@@ -269,170 +270,16 @@ function generateLine(spec: LineSpec): Train[] {
   return out;
 }
 
-const KRL_LINES: LineSpec[] = [
-  {
-    id: "krl-bogor",
-    line: "bogor",
-    name: "KRL Lin Bogor",
-    number: "B",
-    operator: "KRL",
-    serviceClass: "Commuter",
-    stops: [
-      { code: "JAKK", at: 0 },
-      { code: "JAY", at: 3 },
-      { code: "MGB", at: 5 },
-      { code: "SWB", at: 7 },
-      { code: "JUA", at: 9 },
-      { code: "GDD", at: 12 },
-      { code: "CKI", at: 14 },
-      { code: "MRI", at: 17 },
-      { code: "TEB", at: 20 },
-      { code: "CW", at: 23 },
-      { code: "DRN", at: 26 },
-      { code: "PSMB", at: 28 },
-      { code: "PSM", at: 31 },
-      { code: "TNT", at: 34 },
-      { code: "LNA", at: 37 },
-      { code: "UP", at: 40 },
-      { code: "UI", at: 43 },
-      { code: "POC", at: 45 },
-      { code: "DPB", at: 48 },
-      { code: "DPK", at: 51 },
-      { code: "CTA", at: 55 },
-      { code: "BJD", at: 61 },
-      { code: "CLT", at: 65 },
-      { code: "BOG", at: 70 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 20,
-  },
-  {
-    id: "krl-cikarang",
-    line: "cikarang",
-    name: "KRL Lin Cikarang",
-    number: "C",
-    operator: "KRL",
-    serviceClass: "Commuter",
-    /**
-     * Jalur lingkar (Cikarang Loop). Dari Cikarang masuk Jatinegara lalu
-     * mengitari pusat kota: Pasar Senen → Kemayoran → Rajawali → Kampung
-     * Bandan → Angke → Duri → Tanah Abang → Manggarai, lalu kembali ke
-     * Jatinegara. Karena berbentuk lingkar, rute seperti Kemayoran → Duri
-     * (dan sebaliknya) terlayani LANGSUNG tanpa transit.
-     */
-    stops: [
-      { code: "CKR", at: 0 },
-      { code: "MTM", at: 3 },
-      { code: "CIT", at: 6 },
-      { code: "TBN", at: 10 },
-      { code: "BKST", at: 14 },
-      { code: "BEK", at: 17 },
-      { code: "KRI", at: 20 },
-      { code: "CUK", at: 24 },
-      { code: "KLDB", at: 27 },
-      { code: "BUA", at: 30 },
-      { code: "KLD", at: 33 },
-      { code: "JNG", at: 36 },
-      { code: "PSE", at: 41 },
-      { code: "KMO", at: 44 },
-      { code: "RJW", at: 47 },
-      { code: "KPB", at: 50 },
-      { code: "AK", at: 54 },
-      { code: "DU", at: 57 },
-      { code: "THB", at: 62 },
-      { code: "MRI", at: 67 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 20,
-  },
-  {
-    /**
-     * Pola layanan kedua Lin Cikarang: berakhir di Jakarta Kota lewat
-     * Pasar Senen–Kampung Bandan (half racket "via Jakarta Kota").
-     */
-    id: "krl-cikarang-jakk",
-    line: "cikarang",
-    name: "KRL Lin Cikarang",
-    number: "C",
-    seqOffset: 200,
-    operator: "KRL",
-    serviceClass: "Commuter",
-    stops: [
-      { code: "CKR", at: 0 },
-      { code: "MTM", at: 3 },
-      { code: "CIT", at: 6 },
-      { code: "TBN", at: 10 },
-      { code: "BKST", at: 14 },
-      { code: "BEK", at: 17 },
-      { code: "KRI", at: 20 },
-      { code: "CUK", at: 24 },
-      { code: "KLDB", at: 27 },
-      { code: "BUA", at: 30 },
-      { code: "KLD", at: 33 },
-      { code: "JNG", at: 36 },
-      { code: "PSE", at: 41 },
-      { code: "KMO", at: 44 },
-      { code: "RJW", at: 47 },
-      { code: "KPB", at: 50 },
-      { code: "JAKK", at: 54 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 40,
-  },
-  {
-    id: "krl-rangkasbitung",
-    line: "rangkasbitung",
-    name: "KRL Lin Rangkasbitung",
-    number: "R",
-    operator: "KRL",
-    serviceClass: "Commuter",
-    stops: [
-      { code: "THB", at: 0 },
-      { code: "PLM", at: 3 },
-      { code: "KBO", at: 7 },
-      { code: "PSR", at: 10 },
-      { code: "PDR", at: 13 },
-      { code: "SDM", at: 16 },
-      { code: "RBT", at: 19 },
-      { code: "SERP", at: 22 },
-      { code: "CSK", at: 25 },
-      { code: "CCY", at: 28 },
-      { code: "PRP", at: 33 },
-      { code: "CLJ", at: 38 },
-      { code: "DRU", at: 41 },
-      { code: "TNJ", at: 44 },
-      { code: "TGR", at: 47 },
-      { code: "CKY", at: 50 },
-      { code: "MJA", at: 54 },
-      { code: "CTR", at: 58 },
-      { code: "RK", at: 63 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 30,
-  },
-  {
-    id: "krl-priok",
-    line: "priok",
-    name: "KRL Lin Tanjung Priok",
-    number: "TP",
-    operator: "KRL",
-    serviceClass: "Commuter",
-    stops: [
-      { code: "JAKK", at: 0 },
-      { code: "KPB", at: 4 },
-      { code: "ANC", at: 7 },
-      { code: "JIS", at: 10 },
-      { code: "TPK", at: 13 },
-    ],
-    startMin: 5 * 60,
-    endMin: 21 * 60,
-    headway: 30,
-  },
-];
+/* ==================================================================== */
+/* LIN KRL COMMUTER — DATA NYATA (GAPEKA)                               */
+/* ==================================================================== */
+/*
+ * Seluruh perjalanan KRL Commuter (Lin Bogor, Cikarang, Rangkasbitung,
+ * Tanjung Priok) diambil dari jadwal RESMI publik: nomor KA asli + jam
+ * perhentian nyata per papan GAPEKA, lihat `krlRealTimetable.ts`.
+ * Lin Tangerang memakai `tangerangTimetable.ts`. Tidak ada lagi pola
+ * headway seragam buatan.
+ */
 
 const MRT_LINES: LineSpec[] = [
   {
@@ -493,9 +340,10 @@ const LRT_LINES: LineSpec[] = [
 
 export const TRAINS: Train[] = [
   ...KAI_TRAINS,
-  ...KRL_LINES.flatMap(generateLine),
-  // Lin Tangerang memakai jadwal NYATA GAPEKA 2026 (bukan pola headway seragam),
-  // sehingga jam keberangkatan peron persis seperti papan stasiun.
+  // KRL Commuter: jadwal NYATA GAPEKA (nomor KA + jam peron asli).
+  // Lin Bogor, Cikarang, Rangkasbitung, Tanjung Priok dari `krlRealTimetable.ts`,
+  // Lin Tangerang dari `tangerangTimetable.ts`.
+  ...KRL_REAL_TRIPS,
   ...TANGERANG_TRIPS,
   ...MRT_LINES.flatMap(generateLine),
   ...LRT_LINES.flatMap(generateLine),

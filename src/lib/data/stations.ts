@@ -60,6 +60,10 @@ const RAW_STATIONS: Station[] = [
   { code: "BJD", name: "Bojonggede", city: "Bogor", operators: ["KRL"], lat: -6.49402, lng: 106.79497 },
   { code: "CLT", name: "Cilebut", city: "Bogor", operators: ["KRL"], lat: -6.5321, lng: 106.8005 },
   { code: "BOG", name: "Bogor", city: "Bogor", operators: ["KRL"], lat: -6.59428, lng: 106.79072 },
+  // Cabang Nambo (Lin Bogor): Citayam – Pondok Rajeg – Cibinong – Nambo
+  { code: "PDRG", name: "Pondok Rajeg", city: "Bogor", operators: ["KRL"], lat: -6.460783, lng: 106.824296 },
+  { code: "CBN", name: "Cibinong", city: "Bogor", operators: ["KRL"], lat: -6.464248, lng: 106.85252 },
+  { code: "NMO", name: "Nambo", city: "Bogor", operators: ["KRL"], lat: -6.466282, lng: 106.906269 },
 
   // --- Lin Cikarang (Biru): Cikarang – Jatinegara – Pasar Senen – Jakarta Kota ---
   { code: "CKR", name: "Cikarang", city: "Bekasi", operators: ["KAI", "KRL"], lat: -6.25555, lng: 107.14576 },
@@ -78,6 +82,14 @@ const RAW_STATIONS: Station[] = [
   { code: "RJW", name: "Rajawali", city: "Jakarta", operators: ["KRL"], lat: -6.14632, lng: 106.83716 },
   { code: "KPB", name: "Kampung Bandan", city: "Jakarta", operators: ["KRL"], lat: -6.13316, lng: 106.82777 },
   { code: "AK", name: "Angke", city: "Jakarta", operators: ["KRL"], lat: -6.14583, lng: 106.80083 },
+  // Stasiun jalur layang Cikarang Loop (Manggarai–Duri & Jatinegara–Pasar Senen)
+  { code: "MTR", name: "Matraman", city: "Jakarta", operators: ["KRL"], lat: -6.212567, lng: 106.859753 },
+  { code: "SUD", name: "Sudirman", city: "Jakarta", operators: ["KRL"], lat: -6.202408, lng: 106.823449 },
+  { code: "SUDB", name: "Sudirman Baru (BNI City)", city: "Jakarta", operators: ["KRL"], lat: -6.201594, lng: 106.819717 },
+  { code: "KAT", name: "Karet", city: "Jakarta", operators: ["KRL"], lat: -6.200817, lng: 106.8159 },
+  { code: "POK", name: "Pondok Jati", city: "Jakarta", operators: ["KRL"], lat: -6.209124, lng: 106.862342 },
+  { code: "KMT", name: "Kramat", city: "Jakarta", operators: ["KRL"], lat: -6.19362, lng: 106.856512 },
+  { code: "GST", name: "Gang Sentiong", city: "Jakarta", operators: ["KRL"], lat: -6.186153, lng: 106.850871 },
 
   // --- Lin Tangerang (Coklat): Duri – Tangerang ---
   { code: "DU", name: "Duri", city: "Jakarta", operators: ["KRL"], lat: -6.15444, lng: 106.80133 },
@@ -99,6 +111,7 @@ const RAW_STATIONS: Station[] = [
   { code: "PSR", name: "Pesanggrahan", city: "Jakarta", operators: ["KRL"], lat: -6.25542, lng: 106.76501 },
   { code: "PDR", name: "Pondok Ranji", city: "Tangerang Selatan", operators: ["KRL"], lat: -6.27631, lng: 106.74519 },
   { code: "SDM", name: "Sudimara", city: "Tangerang Selatan", operators: ["KRL"], lat: -6.29623, lng: 106.71372 },
+  { code: "JMU", name: "Jurangmangu", city: "Tangerang Selatan", operators: ["KRL"], lat: -6.288582, lng: 106.729146 },
   { code: "RBT", name: "Rawa Buntu", city: "Tangerang Selatan", operators: ["KRL"], lat: -6.3145, lng: 106.67675 },
   { code: "SERP", name: "Serpong", city: "Tangerang Selatan", operators: ["KRL"], lat: -6.3201, lng: 106.66474 },
   { code: "CSK", name: "Cisauk", city: "Tangerang", operators: ["KRL"], lat: -6.32491, lng: 106.64057 },

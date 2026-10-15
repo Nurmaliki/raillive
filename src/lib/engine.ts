@@ -13,13 +13,25 @@ import type {
 } from "@/lib/types";
 
 /**
- * Mesin simulasi deterministik.
+ * Mesin status.
  *
- * Delay dihitung sebagai fungsi hash dari (id kereta + tanggal), sehingga
- * sebuah kereta punya delay yang STABIL sepanjang hari tetapi berubah
- * tiap hari. Ini membuat UI terasa "hidup" tanpa perlu backend.
+ * PENTING — sumber data NYATA:
+ * Jadwal, nomor KA, dan jam tiap perhentian berasal dari jadwal RESMI publik
+ * (GAPEKA Commuter Line) — lihat `data/krlRealTimetable.ts` &
+ * `data/tangerangTimetable.ts`. Tidak ada jadwal buatan.
+ *
+ * Karena tidak tersedia feed gangguan/delay KRL gratis tanpa kunci,
+ * aplikasi TIDAK mengarang keterlambatan: delay selalu 0 dan posisi kereta
+ * diestimasi dari jam terjadwal + waktu WIB saat ini. Bila kelak ada feed
+ * delay resmi, cukup isi nilai di sini.
  */
 
+/** Delay terjadwal sebuah kereta (menit). Selalu 0: tidak ada delay karangan. */
+export function delayForTrain(_trainId: string, _dateKey: string): number {
+  return 0;
+}
+
+/** Hash deterministik (FNV-1a) — dipakai untuk penomoran peron & variasi halus. */
 function hashString(str: string): number {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -27,15 +39,6 @@ function hashString(str: string): number {
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
-}
-
-/** Delay terjadwal sebuah kereta pada tanggal tertentu (menit, >= 0). */
-export function delayForTrain(trainId: string, dateKey: string): number {
-  const h = hashString(`${trainId}::${dateKey}`);
-  // ~55% tepat waktu, sisanya delay 3..48 menit.
-  const bucket = h % 100;
-  if (bucket < 55) return 0;
-  return 3 + (h % 46);
 }
 
 function statusFromDelay(delayMin: number): LiveStatusKind {
@@ -213,12 +216,20 @@ export function computeLiveStatus(
   }
 
   const position = interpolatePosition(train, progress);
-  // Kecepatan rata-rata wajar, dengan sedikit variasi halus.
-  const wobble = Math.sin(nowMin / 3 + hashString(train.id) % 10) * 8;
-  const speedKmh =
-    nextStopDef && progress < 1
-      ? Math.max(0, Math.round(55 + wobble + (train.operator === "KAI" ? 30 : -10)))
-      : 0;
+  // Kecepatan rata-rata NYATA ruas ini = jarak rel (km) ÷ waktu terjadwal (jam).
+  // Dihitung dari data GAPEKA + koordinat stasiun, bukan angka karangan.
+  let speedKmh = 0;
+  if (nextStopDef && lastSt && nextSt && progress < 1) {
+    const fromMin =
+      absoluteMinutes(lastStopDef.depart ?? lastStopDef.arrive!, lastStopDef.dayOffset) +
+      delayMin;
+    const toMin =
+      absoluteMinutes(nextStopDef.arrive ?? nextStopDef.depart!, nextStopDef.dayOffset) +
+      delayMin;
+    const spanMin = Math.max(1, toMin - fromMin);
+    const segKm = haversineKm(lastSt, nextSt);
+    speedKmh = Math.round(segKm / (spanMin / 60));
+  }
 
   return {
     ...base,
@@ -541,54 +552,13 @@ export function trainStations(train: Train): Station[] {
     .filter((x): x is Station => Boolean(x));
 }
 
-/** Peringatan/gangguan layanan aktif pada tanggal tertentu. */
-export function activeAlerts(dateKey: string): ServiceAlert[] {
-  const all: ServiceAlert[] = [
-    {
-      id: "alert-krl-1",
-      operator: "KRL",
-      severity: "warning",
-      title: "Perawatan jalur Bogor Line",
-      description:
-        "Perawatan prasarana di antara Manggarai–Depok. Perjalanan berpotensi terlambat hingga 15 menit.",
-      affectedTrains: ["krl-bogor-line-1", "krl-bogor-line-2"],
-      createdAt: `${dateKey}T04:00:00`,
-    },
-    {
-      id: "alert-kai-1",
-      operator: "KAI",
-      severity: "info",
-      title: "Penambahan kereta akhir pekan",
-      description:
-        "KA tambahan Argo Parahyangan beroperasi pada akhir pekan untuk mengakomodasi lonjakan penumpang.",
-      affectedTrains: ["kai-argo-parahyangan"],
-      createdAt: `${dateKey}T06:00:00`,
-    },
-    {
-      id: "alert-lrt-1",
-      operator: "LRT",
-      severity: "info",
-      title: "Operasional normal",
-      description:
-        "LRT Jabodebek beroperasi normal dengan headway 10 menit pada jam sibuk.",
-      affectedTrains: [],
-      createdAt: `${dateKey}T05:00:00`,
-    },
-  ];
-
-  // Satu alert "critical" hanya muncul pada sebagian hari (deterministik).
-  if (hashString(`critical::${dateKey}`) % 4 === 0) {
-    all.unshift({
-      id: "alert-kai-critical",
-      operator: "KAI",
-      severity: "critical",
-      title: "Gangguan sinyal di Cirebon",
-      description:
-        "Gangguan sistem persinyalan mengakibatkan keterlambatan signifikan pada KA lintas utara.",
-      affectedTrains: ["kai-argo-bromo-anggrek", "kai-kertajaya"],
-      createdAt: `${dateKey}T07:30:00`,
-    });
-  }
-
-  return all;
+/**
+ * Peringatan/gangguan layanan aktif.
+ *
+ * TIDAK ADA feed gangguan KRL resmi yang gratis tanpa kunci, sehingga fungsi
+ * ini mengembalikan daftar KOSONG: aplikasi tidak boleh MENGARANG gangguan.
+ * Bila kelak tersedia feed resmi, isi di sini.
+ */
+export function activeAlerts(_dateKey: string): ServiceAlert[] {
+  return [];
 }
