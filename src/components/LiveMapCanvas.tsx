@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { OPERATOR_META, type LiveStatus, type Operator, type Station } from "@/lib/types";
 import { snapStationToRails, snapToLine } from "@/lib/railLines";
+import { useTheme } from "@/lib/useTheme";
 
 /** Satu lin rute (digabung per lin, bukan per kereta) untuk digambar di peta. */
 export interface RouteLine {
@@ -22,6 +23,26 @@ type LMap = import("leaflet").Map;
 type LCircle = import("leaflet").CircleMarker;
 type LPoly = import("leaflet").Polyline;
 type LMarker = import("leaflet").Marker;
+
+/** Palet elemen peta per tema (Leaflet butuh warna konkret, bukan CSS var). */
+const MAP_PALETTE = {
+  dark: {
+    base: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    ref: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    stationFill: "#e6edf7",
+    stationStroke: "#05080f",
+    casing: "#05080f",
+    labelClass: "rl-labels",
+  },
+  light: {
+    base: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    ref: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    stationFill: "#1f2a3d",
+    stationStroke: "#ffffff",
+    casing: "#ffffff",
+    labelClass: "rl-labels rl-labels-light",
+  },
+} as const;
 
 /** Warna sebuah kereta: warna lin bila ada, jika tidak warna operator. */
 function trainColor(t: LiveStatus): string {
@@ -97,7 +118,10 @@ export function LiveMapCanvas({
   const trainMarkers = useRef(new Map<string, LCircle>());
   const routeLines = useRef(new Map<string, { casing: LPoly; main: LPoly }>());
   const highlightRef = useRef<LMarker | null>(null);
+  const baseTileRef = useRef<import("leaflet").TileLayer | null>(null);
+  const refTileRef = useRef<import("leaflet").TileLayer | null>(null);
   const [ready, setReady] = useState(false);
+  const theme = useTheme();
 
   /* ---------- 1. Inisialisasi peta (sekali) ---------- */
   useEffect(() => {
@@ -119,21 +143,6 @@ export function LiveMapCanvas({
         preferCanvas: true,
         attributionControl: true,
       });
-
-      // Basemap gelap gratis (Esri Dark Gray Canvas) — tanpa API key.
-      L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-        {
-          maxZoom: 16,
-          attribution:
-            'Peta &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        },
-      ).addTo(map);
-      // Lapisan label (nama tempat & jalan) di atas basemap — dinaikkan kontrasnya.
-      L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom: 16, attribution: "", className: "rl-labels" },
-      ).addTo(map);
 
       routeLayerRef.current = L.layerGroup().addTo(map);
       stationLayerRef.current = L.layerGroup().addTo(map);
@@ -157,30 +166,55 @@ export function LiveMapCanvas({
     };
   }, []);
 
+  /* ---------- 1b. Basemap mengikuti tema (gelap/terang) ---------- */
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!ready || !L || !map) return;
+    const pal = MAP_PALETTE[theme];
+
+    // Ganti lapisan ubin tanpa membangun ulang peta.
+    if (baseTileRef.current) map.removeLayer(baseTileRef.current);
+    if (refTileRef.current) map.removeLayer(refTileRef.current);
+
+    baseTileRef.current = L.tileLayer(pal.base, {
+      maxZoom: 16,
+      attribution:
+        'Peta &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+    // Lapisan label (nama tempat & jalan) di atas basemap.
+    refTileRef.current = L.tileLayer(pal.ref, {
+      maxZoom: 16,
+      attribution: "",
+      className: pal.labelClass,
+    }).addTo(map);
+  }, [ready, theme]);
+
   /* ---------- 2. Titik stasiun (ditempel ke rel agar pas di jalur) ---------- */
   useEffect(() => {
     const L = LRef.current;
     const layer = stationLayerRef.current;
     if (!ready || !L || !layer) return;
+    const pal = MAP_PALETTE[theme];
     layer.clearLayers();
     for (const s of stations) {
       // Koordinat stasiun di dataset bersifat perkiraan → tempel ke rel
       // lin yang dilayaninya agar titik tepat berada di atas garis rute.
       const [slat, slng] = snapStationToRails(s.lines, s.lat, s.lng);
-      // Titik terang dengan cincin gelap supaya jelas terlihat di peta gelap
+      // Titik terang dengan cincin kontras supaya jelas terlihat di peta
       // dan tampak "duduk" di atas garis rel.
       L.circleMarker([slat, slng], {
         radius: 3.4,
-        color: "#05080f",
+        color: pal.stationStroke,
         weight: 1.5,
         opacity: 0.9,
-        fillColor: "#e6edf7",
+        fillColor: pal.stationFill,
         fillOpacity: 0.95,
       })
         .bindTooltip(`${s.name} (${s.code})`, { direction: "top", className: "rl-tip" })
         .addTo(layer);
     }
-  }, [ready, stations]);
+  }, [ready, stations, theme]);
 
   /* ---------- 3. Label nama stasiun (dengan anti-tumpang-tindih) ---------- */
   useEffect(() => {
@@ -256,7 +290,7 @@ export function LiveMapCanvas({
     for (const r of routes) {
       if (r.path.length < 2) continue;
       const casing = L.polyline(r.path, {
-        color: "#05080f",
+        color: MAP_PALETTE[theme].casing,
         weight: 7,
         opacity: 0.55,
         lineCap: "round",
@@ -283,7 +317,7 @@ export function LiveMapCanvas({
         map.fitBounds(pts as [number, number][], { padding: [28, 28] });
       }
     }
-  }, [ready, routes, focusKeys]);
+  }, [ready, routes, focusKeys, theme]);
 
   /* ---------- 5. Sorotan rute aktif / filter lin ---------- */
   useEffect(() => {
@@ -305,6 +339,7 @@ export function LiveMapCanvas({
     const L = LRef.current;
     const layer = trainLayerRef.current;
     if (!ready || !L || !layer) return;
+    const stroke = MAP_PALETTE[theme].stationStroke;
 
     const seen = new Set<string>();
     for (const t of trains) {
@@ -318,7 +353,7 @@ export function LiveMapCanvas({
       if (!m) {
         m = L.circleMarker(latlng, {
           radius: 5,
-          color: "#05080f",
+          color: stroke,
           weight: 1.5,
           fillColor: color,
           fillOpacity: 1,
@@ -330,7 +365,7 @@ export function LiveMapCanvas({
         trainMarkers.current.set(t.trainId, m);
       } else {
         m.setLatLng(latlng);
-        m.setStyle({ fillColor: color });
+        m.setStyle({ fillColor: color, color: stroke });
       }
       m.setRadius(isHot ? 8 : 5);
       m.bindTooltip(
@@ -347,7 +382,7 @@ export function LiveMapCanvas({
         trainMarkers.current.delete(id);
       }
     }
-  }, [ready, trains, selected, hovered, onSelect, onHover]);
+  }, [ready, trains, selected, hovered, onSelect, onHover, theme]);
 
   /* ---------- 7. Sorotan + fokus kereta terpilih ---------- */
   useEffect(() => {
@@ -399,7 +434,7 @@ export function LiveMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="h-[420px] w-full bg-[#0a0f1a] sm:h-[520px] lg:h-[600px]"
+      className="h-[420px] w-full bg-(--map-bg) sm:h-[520px] lg:h-[600px]"
       role="application"
       aria-label="Peta posisi kereta real-time"
     />

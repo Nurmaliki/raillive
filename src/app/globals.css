@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* ============================================================
+   TEMA (gelap / terang)
+   Nilai di :root = tema GELAP (default). [data-theme="light"]
+   menimpa variabel untuk tema TERANG. Atribut data-theme dipasang
+   di <html> oleh skrip kecil di layout (anti-kedip) dan diubah oleh
+   tombol di Nav.
+   ============================================================ */
 :root {
   --background: #070b14;
   --surface: #0e1626;
@@ -9,6 +16,65 @@
   --muted: #93a2bd;
   --brand: #38bdf8;
   --brand-2: #818cf8;
+
+  /* Peta & komponen Leaflet */
+  --map-bg: #0a0f1a;
+  --stn-fill: #e6edf7;
+  --stn-stroke: #05080f;
+  --casing: #05080f;
+  --tip-bg: #0e1626;
+  --tip-border: #22314f;
+  --tip-fg: #eef2f9;
+  --stn-label-fg: #dbe6f7;
+  --stn-label-halo: #05080f;
+  --leaf-attr-bg: rgba(7, 11, 20, 0.7);
+  --leaf-attr-fg: #6b7c9c;
+  --leaf-bar-bg: #0e1626;
+  --leaf-bar-fg: #eef2f9;
+
+  /* Dekorasi latar & kartu */
+  --glow-1: rgba(56, 189, 248, 0.14);
+  --glow-2: rgba(129, 140, 248, 0.12);
+  --card-grad-top: rgba(255, 255, 255, 0.035);
+  --card-grad-bottom: rgba(255, 255, 255, 0.01);
+  --scroll-thumb: #24324f;
+  --on-brand: #0b1424;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --background: #eef3fb;
+  --surface: #ffffff;
+  --surface-2: #e6edf8;
+  --border: #cfdcee;
+  --foreground: #0b1424;
+  --muted: #5a6b86;
+  --brand: #0369a1;
+  --brand-2: #4f46e5;
+
+  --map-bg: #dfe7f2;
+  --stn-fill: #1f2a3d;
+  --stn-stroke: #ffffff;
+  --casing: #ffffff;
+  --tip-bg: #ffffff;
+  --tip-border: #cfdcee;
+  --tip-fg: #0b1424;
+  --stn-label-fg: #16233a;
+  --stn-label-halo: #ffffff;
+  --leaf-attr-bg: rgba(255, 255, 255, 0.82);
+  --leaf-attr-fg: #5a6b86;
+  --leaf-bar-bg: #ffffff;
+  --leaf-bar-fg: #0b1424;
+
+  --glow-1: rgba(2, 132, 199, 0.1);
+  --glow-2: rgba(79, 70, 229, 0.08);
+  --card-grad-top: rgba(255, 255, 255, 0.92);
+  --card-grad-bottom: rgba(255, 255, 255, 0.7);
+  --scroll-thumb: #b9c8de;
+  --on-brand: #ffffff;
+
+  color-scheme: light;
 }
 
 @theme inline {
@@ -20,6 +86,7 @@
   --color-muted: var(--muted);
   --color-brand: var(--brand);
   --color-brand-2: var(--brand-2);
+  --color-on-brand: var(--on-brand);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -30,8 +97,8 @@
 
 body {
   background:
-    radial-gradient(1100px 600px at 12% -8%, rgba(56, 189, 248, 0.14), transparent 60%),
-    radial-gradient(900px 520px at 88% 0%, rgba(129, 140, 248, 0.12), transparent 55%),
+    radial-gradient(1100px 600px at 12% -8%, var(--glow-1), transparent 60%),
+    radial-gradient(900px 520px at 88% 0%, var(--glow-2), transparent 55%),
     var(--background);
   color: var(--foreground);
   min-height: 100vh;
@@ -44,7 +111,7 @@ body {
 }
 
 .card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  background: linear-gradient(180deg, var(--card-grad-top), var(--card-grad-bottom));
   border: 1px solid var(--border);
   border-radius: 16px;
   backdrop-filter: blur(6px);
@@ -82,27 +149,40 @@ body {
 }
 .fade-up { animation: fade-up 0.35s ease both; }
 
-/* ---------- Peta Leaflet (tema gelap) ---------- */
-.leaflet-container {
-  background: #0a0f1a;
+/* Munculnya modal detail kereta. */
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-in { animation: modal-in 0.22s ease both; }
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.overlay-in { animation: overlay-in 0.18s ease both; }
+
+/* ---------- Peta Leaflet (mengikuti tema) ---------- */
+/* Spesifisitas ganda agar menang atas bawaan Leaflet (.leaflet-container{background:#ddd}). */
+.leaflet-container.leaflet-container {
+  background: var(--map-bg);
   font-family: inherit;
 }
 .leaflet-container a {
-  color: #7cc4f0;
+  color: var(--brand);
 }
-/* Tooltip gelap agar menyatu dengan tema aplikasi. */
+/* Tooltip agar menyatu dengan tema aplikasi. */
 .leaflet-tooltip.rl-tip {
-  background: #0e1626;
-  border: 1px solid #22314f;
+  background: var(--tip-bg);
+  border: 1px solid var(--tip-border);
   border-radius: 8px;
-  color: #eef2f9;
+  color: var(--tip-fg);
   font-size: 11px;
   line-height: 1.35;
   padding: 5px 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 .leaflet-tooltip.rl-tip::before {
-  border-top-color: #22314f;
+  border-top-color: var(--tip-border);
 }
 .leaflet-tooltip.rl-tip-strong {
   font-size: 12px;
@@ -127,21 +207,25 @@ body {
 }
 /* Atribusi Leaflet sedikit diperkecil agar tidak mengganggu. */
 .leaflet-control-attribution {
-  background: rgba(7, 11, 20, 0.7) !important;
-  color: #6b7c9c !important;
+  background: var(--leaf-attr-bg) !important;
+  color: var(--leaf-attr-fg) !important;
   font-size: 10px !important;
 }
-.leaflet-control-attribution a { color: #7cc4f0 !important; }
+.leaflet-control-attribution a { color: var(--brand) !important; }
 .leaflet-bar a {
-  background: #0e1626 !important;
-  color: #eef2f9 !important;
-  border-color: #22314f !important;
+  background: var(--leaf-bar-bg) !important;
+  color: var(--leaf-bar-fg) !important;
+  border-color: var(--border) !important;
 }
-.leaflet-bar a:hover { background: #16223a !important; }
+.leaflet-bar a:hover { background: var(--surface-2) !important; }
 /* Naikkan kontras label nama tempat pada basemap gelap. */
 .rl-labels {
   filter: brightness(1.9) contrast(1.15);
   mix-blend-mode: screen;
+}
+[data-theme="light"] .rl-labels {
+  filter: contrast(1.05);
+  mix-blend-mode: normal;
 }
 
 /* Label nama stasiun di atas peta (dibuat via divIcon). */
@@ -156,21 +240,21 @@ body {
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: #dbe6f7;
+  color: var(--stn-label-fg);
   text-shadow:
-    0 0 3px #05080f,
-    0 0 3px #05080f,
-    0 0 3px #05080f,
-    0 1px 2px #05080f;
+    0 0 3px var(--stn-label-halo),
+    0 0 3px var(--stn-label-halo),
+    0 0 3px var(--stn-label-halo),
+    0 1px 2px var(--stn-label-halo);
   pointer-events: none;
 }
 /* Stasiun utama (simpul/terminal): label lebih menonjol. */
 .rl-stn-label-p span {
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--stn-label-fg);
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #24324f; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; }

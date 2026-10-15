@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const LINKS = [
   { href: "/", label: "Beranda", icon: "🏠" },
@@ -69,10 +70,13 @@ export function Nav({ providerName, isMock }: { providerName: string; isMock: bo
           ))}
         </nav>
 
-        <span className="ml-auto hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted md:flex">
-          <span className={`pulse-dot ${isMock ? "bg-amber-400" : "bg-green-500"}`} />
-          Sumber: {providerName}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted md:flex">
+            <span className={`pulse-dot ${isMock ? "bg-amber-400" : "bg-green-500"}`} />
+            Sumber: {providerName}
+          </span>
+          <ThemeToggle />
+        </div>
 
         {/* Tombol hamburger (mobile) */}
         <button
@@ -81,7 +85,7 @@ export function Nav({ providerName, isMock }: { providerName: string; isMock: bo
           aria-label={open ? "Tutup menu" : "Buka menu"}
           aria-expanded={open}
           aria-controls="nav-mobile-menu"
-          className="ml-auto grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface text-foreground transition hover:border-brand/50 md:hidden"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface text-foreground transition hover:border-brand/50 md:hidden"
         >
           <span className="relative block h-4 w-5" aria-hidden="true">
             <span

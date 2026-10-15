@@ -30,7 +30,7 @@ export function FavoritesClient() {
           </p>
           <Link
             href="/jadwal"
-            className="mt-5 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-2 px-5 py-2.5 font-semibold text-slate-950"
+            className="mt-5 inline-block rounded-xl bg-gradient-to-r from-brand to-brand-2 px-5 py-2.5 font-semibold text-on-brand"
           >
             Cari Jadwal
           </Link>

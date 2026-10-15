@@ -59,7 +59,7 @@ export default function Home() {
         <div className="mt-7 flex flex-wrap justify-center gap-3">
           <Link
             href="/stasiun"
-            className="rounded-xl bg-gradient-to-r from-brand to-brand-2 px-6 py-3 font-semibold text-slate-950 shadow-lg shadow-brand/20 transition hover:opacity-90"
+            className="rounded-xl bg-gradient-to-r from-brand to-brand-2 px-6 py-3 font-semibold text-on-brand shadow-lg shadow-brand/20 transition hover:opacity-90"
           >
             Buka Papan Stasiun
           </Link>

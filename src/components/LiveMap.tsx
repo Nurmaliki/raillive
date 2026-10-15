@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useLivePolling } from "@/lib/useLivePolling";
 import { LiveBadge, LineBadge, OperatorBadge } from "@/components/Badges";
@@ -22,7 +22,7 @@ const LiveMapCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[420px] w-full items-center justify-center bg-[#0a0f1a] text-sm text-muted sm:h-[520px] lg:h-[600px]">
+      <div className="flex h-[420px] w-full items-center justify-center bg-(--map-bg) text-sm text-muted sm:h-[520px] lg:h-[600px]">
         Memuat peta…
       </div>
     ),
@@ -142,6 +142,21 @@ export function LiveMap({
 
   const moving = liveTrains.filter((t) => t.status !== "not-started" && t.status !== "arrived");
   const selectedTrain = liveTrains.find((t) => t.trainId === selected) ?? null;
+
+  // Modal detail: tutup dengan Escape + kunci scroll latar selama terbuka.
+  useEffect(() => {
+    if (!selectedTrain) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelected(null);
+    }
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [selectedTrain]);
 
   /** Penanda di peta: sembunyikan yang sudah tiba (kecuali sedang dipilih). */
   const mapTrains = useMemo(
@@ -380,54 +395,66 @@ export function LiveMap({
         </ul>
       </div>
 
-      {/* PANEL DETAIL */}
+      {/* MODAL DETAIL KERETA */}
       {selectedTrain && (
-        <div className="card p-5 lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <OperatorBadge operator={selectedTrain.operator} />
-              {selectedTrain.line && <LineBadge line={selectedTrain.line} showName />}
-              <div>
-                <h3 className="text-lg font-bold">{selectedTrain.trainName}</h3>
-                <p className="text-xs text-muted">KA {selectedTrain.trainNumber}</p>
+        <div
+          className="overlay-in fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={() => setSelected(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detail kereta ${selectedTrain.trainName}`}
+        >
+          <div
+            className="modal-in card max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-b-none p-5 shadow-2xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky -top-5 z-10 -mx-5 -mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/95 px-5 py-4 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <OperatorBadge operator={selectedTrain.operator} />
+                {selectedTrain.line && <LineBadge line={selectedTrain.line} showName />}
+                <div>
+                  <h3 className="text-lg font-bold">{selectedTrain.trainName}</h3>
+                  <p className="text-xs text-muted">KA {selectedTrain.trainNumber}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <LiveBadge status={selectedTrain.status} />
+                <button
+                  onClick={() => setSelected(null)}
+                  aria-label="Tutup detail"
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs transition hover:border-brand/50"
+                >
+                  Tutup
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <LiveBadge status={selectedTrain.status} />
-              <button
-                onClick={() => setSelected(null)}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs transition hover:border-brand/50"
-              >
-                Tutup
-              </button>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <Detail label="Dari" value={selectedTrain.originName} />
+              <Detail label="Tujuan" value={selectedTrain.destinationName} />
+              <Detail label="Posisi terakhir" value={selectedTrain.lastStationName} />
+              <Detail label="Stasiun berikutnya" value={selectedTrain.nextStationName ?? "—"} />
+              <Detail
+                label="Keterlambatan"
+                value={selectedTrain.delayMin > 0 ? `+${selectedTrain.delayMin} menit` : "Tepat waktu"}
+              />
+              <Detail label="ETA berikutnya" value={selectedTrain.etaNext ?? "—"} />
+              <Detail label="Kecepatan" value={`${selectedTrain.speedKmh} km/jam`} />
+              <Detail label="Progres" value={`${Math.round(selectedTrain.progress * 100)}%`} />
             </div>
-          </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <Detail label="Dari" value={selectedTrain.originName} />
-            <Detail label="Tujuan" value={selectedTrain.destinationName} />
-            <Detail label="Posisi terakhir" value={selectedTrain.lastStationName} />
-            <Detail label="Stasiun berikutnya" value={selectedTrain.nextStationName ?? "—"} />
-            <Detail
-              label="Keterlambatan"
-              value={selectedTrain.delayMin > 0 ? `+${selectedTrain.delayMin} menit` : "Tepat waktu"}
+            {/* RINCIAN RUTE (semua perhentian + jam) */}
+            <RouteDetail
+              def={trains.find((x) => x.id === selectedTrain.trainId) ?? null}
+              live={selectedTrain}
+              stationByCode={stationByCode}
             />
-            <Detail label="ETA berikutnya" value={selectedTrain.etaNext ?? "—"} />
-            <Detail label="Kecepatan" value={`${selectedTrain.speedKmh} km/jam`} />
-            <Detail label="Progres" value={`${Math.round(selectedTrain.progress * 100)}%`} />
+
+            <p className="mt-4 text-xs text-muted">
+              Estimasi sisa perjalanan mengikuti posisi saat ini. Diperbarui{" "}
+              {new Date(selectedTrain.updatedAt).toLocaleTimeString("id-ID")}.
+            </p>
           </div>
-
-          {/* RINCIAN RUTE (semua perhentian + jam) */}
-          <RouteDetail
-            def={trains.find((x) => x.id === selectedTrain.trainId) ?? null}
-            live={selectedTrain}
-            stationByCode={stationByCode}
-          />
-
-          <p className="mt-4 text-xs text-muted">
-            Estimasi sisa perjalanan mengikuti posisi saat ini. Diperbarui{" "}
-            {new Date(selectedTrain.updatedAt).toLocaleTimeString("id-ID")}.
-          </p>
         </div>
       )}
     </div>

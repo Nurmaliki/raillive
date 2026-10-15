@@ -129,7 +129,7 @@ export function SearchClient({ stations }: { stations: Station[] }) {
             <button
               onClick={runSearch}
               disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-brand to-brand-2 px-4 py-3 font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-50"
+              className="w-full rounded-xl bg-gradient-to-r from-brand to-brand-2 px-4 py-3 font-semibold text-on-brand transition hover:opacity-90 disabled:opacity-50"
             >
               {loading ? "Mencari…" : "Cari Jadwal"}
             </button>
