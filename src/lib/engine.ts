@@ -1,6 +1,7 @@
 import { TRAINS, firstStop, lastStop } from "@/lib/data/trains";
 import { getStation, haversineKm } from "@/lib/data/stations";
 import { absoluteMinutes, jakartaMinutes, shiftDateKey, toHHMM } from "@/lib/time";
+import { isUpcomingDeparture } from "@/lib/departureWindow";
 import type {
   Departure,
   DepartureStatus,
@@ -293,8 +294,8 @@ export function departuresAt(
       const schedMin = absoluteMinutes(stop.depart, stop.dayOffset) + dayDelta * 1440;
       const actualMin = schedMin + delayMin;
 
-      // Hanya tampilkan yang berangkat dalam rentang jendela waktu.
-      if (actualMin < nowMin - 30 || actualMin > nowMin + windowMinutes) continue;
+      // "Ke depan": jangan sertakan kereta yang sudah berangkat.
+      if (!isUpcomingDeparture(actualMin, nowMin, windowMinutes)) continue;
 
       const destDef = lastStop(train);
       const destStation = getStation(destDef.stationCode);
