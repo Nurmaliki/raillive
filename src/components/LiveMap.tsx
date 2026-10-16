@@ -282,10 +282,13 @@ export function LiveMap({
           />
 
           <div className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded-lg border border-border bg-surface/90 px-3 py-2 text-xs text-muted">
-            {lastUpdated
-              ? `Diperbarui ${lastUpdated.toLocaleTimeString("id-ID")}`
-              : "Menunggu data…"}
-            {error && <span className="ml-2 text-red-400">· {error}</span>}
+            <div>Estimasi jadwal · bukan GPS</div>
+            <div>
+              {lastUpdated
+                ? `Diperbarui ${lastUpdated.toLocaleTimeString("id-ID")}`
+                : "Menunggu data…"}
+              {error && <span className="ml-2 text-red-400">· {error}</span>}
+            </div>
           </div>
 
           {lineFilter && (

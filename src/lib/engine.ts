@@ -2,6 +2,7 @@ import { TRAINS, firstStop, lastStop } from "@/lib/data/trains";
 import { getStation, haversineKm } from "@/lib/data/stations";
 import { absoluteMinutes, jakartaMinutes, shiftDateKey, toHHMM } from "@/lib/time";
 import { isUpcomingDeparture } from "@/lib/departureWindow";
+import { currentStopIndex } from "@/lib/liveStopIndex";
 import type {
   Departure,
   DepartureStatus,
@@ -187,14 +188,14 @@ export function computeLiveStatus(
     };
   }
 
-  // Cari segmen yang sedang ditempuh.
-  let lastIdx = 0;
-  for (let i = 0; i < train.stops.length; i++) {
-    const stop = train.stops[i];
-    const ref = stop.depart ?? stop.arrive!;
-    if (absoluteMinutes(ref, stop.dayOffset) + delayMin <= nowMin) lastIdx = i;
-    else break;
-  }
+  // Stasiun dianggap dicapai saat waktu tiba, termasuk ketika kereta sedang berhenti.
+  const lastIdx = currentStopIndex(
+    train.stops.map((stop) => ({
+      arriveMinute: stop.arrive ? absoluteMinutes(stop.arrive, stop.dayOffset) + delayMin : null,
+      departMinute: stop.depart ? absoluteMinutes(stop.depart, stop.dayOffset) + delayMin : null,
+    })),
+    nowMin,
+  );
 
   const lastStopDef = train.stops[lastIdx];
   const nextStopDef = train.stops[lastIdx + 1];
