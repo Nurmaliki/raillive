@@ -6,6 +6,7 @@ import { useLivePolling } from "@/lib/useLivePolling";
 import { LiveBadge, LineBadge, OperatorBadge } from "@/components/Badges";
 import type { RouteLine } from "@/components/LiveMapCanvas";
 import { routePathForLine } from "@/lib/railLines";
+import { terminalSchedule } from "@/lib/liveMapList";
 import {
   KRL_LINE_ORDER,
   LINE_META,
@@ -66,6 +67,14 @@ export function LiveMap({
   const stationByCode = useMemo(
     () => new Map(stations.map((s) => [s.code, s])),
     [stations],
+  );
+  const trainById = useMemo(() => new Map(trains.map((t) => [t.id, t])), [trains]);
+  const availableLines = useMemo(
+    () =>
+      Object.entries(LINE_META).filter(
+        ([, meta]) => operatorFilter === "all" || meta.operator === operatorFilter,
+      ),
+    [operatorFilter],
   );
 
   /**
@@ -337,15 +346,35 @@ export function LiveMap({
 
       {/* DAFTAR KERETA */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold">Daftar Kereta</h2>
-          <span className="text-xs text-muted">{liveTrains.length} kereta</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-bold">Daftar Kereta</h2>
+            <span className="text-xs text-muted">{liveTrains.length} kereta</span>
+          </div>
+          <label className="text-xs text-muted">
+            <span className="sr-only">Filter daftar berdasarkan jalur</span>
+            <select
+              aria-label="Filter daftar berdasarkan jalur"
+              value={lineFilter ?? "all"}
+              onChange={(e) => setLineFilter(e.target.value === "all" ? null : e.target.value)}
+              className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground outline-none"
+            >
+              <option value="all">Semua jalur</option>
+              {availableLines.map(([id, meta]) => (
+                <option key={id} value={id}>
+                  {meta.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <ul className="max-h-[720px] space-y-2 overflow-auto pr-1">
           {liveTrains.length === 0 && (
             <li className="card p-4 text-sm text-muted">Tidak ada kereta untuk filter ini.</li>
           )}
-          {liveTrains.map((t) => (
+          {liveTrains.map((t) => {
+            const schedule = terminalSchedule(trainById.get(t.trainId) ?? null);
+            return (
             <li key={t.trainId}>
               <button
                 onClick={() => setSelected(t.trainId)}
@@ -369,6 +398,20 @@ export function LiveMap({
                 <div className="mt-2 text-xs text-muted">
                   {t.lastStationName} → {t.nextStationName ?? "stasiun akhir"}
                 </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-border bg-surface/60 px-2.5 py-2 text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted">Keberangkatan</div>
+                    <div className="mt-0.5 font-medium text-foreground">
+                      {t.originName} · <span className="font-mono">{schedule.departure}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-muted">Kedatangan</div>
+                    <div className="mt-0.5 font-medium text-foreground">
+                      {t.destinationName} · <span className="font-mono">{schedule.arrival}</span>
+                    </div>
+                  </div>
+                </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
                   <div
                     className="h-full rounded-full transition-all"
@@ -391,7 +434,8 @@ export function LiveMap({
                 </div>
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
 
