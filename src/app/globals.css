@@ -228,6 +228,31 @@ body {
   mix-blend-mode: normal;
 }
 
+/* Ikon kereta di peta: warna mengikuti jalur, bentuk mengikuti operator. */
+.rl-train-marker {
+  background: none;
+  border: none;
+}
+.rl-train-marker span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border: 2px solid var(--marker-stroke);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+  transition: transform 150ms ease;
+}
+.rl-train-marker svg {
+  width: 72%;
+  height: 72%;
+}
+.rl-train-marker-hot span {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 45%), 0 3px 10px rgb(0 0 0 / 45%);
+}
+
 /* Label nama stasiun di atas peta (dibuat via divIcon). */
 .rl-stn-label {
   background: none;

@@ -46,7 +46,8 @@ export function LiveMap({
   trains: Train[];
   initialTrain?: string;
 }) {
-  const [selected, setSelected] = useState<string | null>(initialTrain ?? null);
+  const [focusedTrain, setFocusedTrain] = useState<string | null>(initialTrain ?? null);
+  const [detailTrain, setDetailTrain] = useState<string | null>(null);
   const [operatorFilter, setOperatorFilter] = useState<Operator | "all">("KRL");
   const [lineFilter, setLineFilter] = useState<string | null>(null);
   const [showLabels, setShowLabels] = useState(true);
@@ -56,7 +57,7 @@ export function LiveMap({
   const [prevInitialTrain, setPrevInitialTrain] = useState(initialTrain);
   if (initialTrain !== prevInitialTrain) {
     setPrevInitialTrain(initialTrain);
-    if (initialTrain) setSelected(initialTrain);
+    if (initialTrain) setFocusedTrain(initialTrain);
   }
 
   const { data, error, loading, lastUpdated, refresh } = useLivePolling<LiveResponse>(
@@ -150,13 +151,14 @@ export function LiveMap({
   }, [data, operatorFilter, lineFilter]);
 
   const moving = liveTrains.filter((t) => t.status !== "not-started" && t.status !== "arrived");
-  const selectedTrain = liveTrains.find((t) => t.trainId === selected) ?? null;
+  const focused = liveTrains.find((t) => t.trainId === focusedTrain) ?? null;
+  const selectedTrain = liveTrains.find((t) => t.trainId === detailTrain) ?? null;
 
   // Modal detail: tutup dengan Escape + kunci scroll latar selama terbuka.
   useEffect(() => {
     if (!selectedTrain) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setSelected(null);
+      if (e.key === "Escape") setDetailTrain(null);
     }
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -167,13 +169,13 @@ export function LiveMap({
     };
   }, [selectedTrain]);
 
-  /** Penanda di peta: sembunyikan yang sudah tiba (kecuali sedang dipilih). */
+  /** Penanda di peta: sembunyikan yang sudah tiba (kecuali sedang difokuskan). */
   const mapTrains = useMemo(
     () =>
       liveTrains.filter(
-        (t) => t.status !== "arrived" || t.trainId === selected,
+        (t) => t.status !== "arrived" || t.trainId === focusedTrain,
       ),
-    [liveTrains, selected],
+    [liveTrains, focusedTrain],
   );
 
   /** Kunci rute yang terlihat → menentukan area fokus peta. */
@@ -271,11 +273,11 @@ export function LiveMap({
             primaryStations={primaryStations}
             showLabels={showLabels}
             trains={mapTrains}
-            selected={selected}
+            selected={focusedTrain}
             hovered={hover}
-            activeLine={selectedTrain?.line ?? null}
+            activeLine={focused?.line ?? selectedTrain?.line ?? null}
             lineFilter={lineFilter}
-            onSelect={setSelected}
+            onSelect={setFocusedTrain}
             onHover={setHover}
           />
 
@@ -376,12 +378,13 @@ export function LiveMap({
             const schedule = terminalSchedule(trainById.get(t.trainId) ?? null);
             return (
             <li key={t.trainId}>
-              <button
-                onClick={() => setSelected(t.trainId)}
+              <article
                 onMouseEnter={() => setHover(t.trainId)}
                 onMouseLeave={() => setHover(null)}
                 className={`card w-full p-3.5 text-left transition ${
-                  selected === t.trainId ? "border-brand/60 bg-surface-2/60" : "hover:border-brand/40"
+                  focusedTrain === t.trainId || detailTrain === t.trainId
+                    ? "border-brand/60 bg-surface-2/60"
+                    : "hover:border-brand/40"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -432,7 +435,25 @@ export function LiveMap({
                         : "berhenti"}
                   </span>
                 </div>
-              </button>
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setDetailTrain(t.trainId)}
+                    className="rounded-lg border border-border px-3 py-2 text-xs font-semibold transition hover:border-brand/60 hover:text-brand"
+                    aria-label={`Buka detail KA ${t.trainNumber}`}
+                  >
+                    Buka detail
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFocusedTrain(t.trainId)}
+                    className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90"
+                    aria-label={`Lihat posisi KA ${t.trainNumber}`}
+                  >
+                    Lihat posisi
+                  </button>
+                </div>
+              </article>
             </li>
             );
           })}
@@ -443,7 +464,7 @@ export function LiveMap({
       {selectedTrain && (
         <div
           className="overlay-in fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={() => setSelected(null)}
+          onClick={() => setDetailTrain(null)}
           role="dialog"
           aria-modal="true"
           aria-label={`Detail kereta ${selectedTrain.trainName}`}
@@ -464,7 +485,7 @@ export function LiveMap({
               <div className="flex items-center gap-3">
                 <LiveBadge status={selectedTrain.status} />
                 <button
-                  onClick={() => setSelected(null)}
+                  onClick={() => setDetailTrain(null)}
                   aria-label="Tutup detail"
                   className="rounded-lg border border-border px-3 py-1.5 text-xs transition hover:border-brand/50"
                 >

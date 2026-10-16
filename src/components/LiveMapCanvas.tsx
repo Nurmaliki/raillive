@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { OPERATOR_META, type LiveStatus, type Operator, type Station } from "@/lib/types";
 import { snapStationToRails, snapToLine } from "@/lib/railLines";
+import { trainIconSvg } from "@/lib/liveMapList";
 import { useTheme } from "@/lib/useTheme";
 
 /** Satu lin rute (digabung per lin, bukan per kereta) untuk digambar di peta. */
@@ -20,7 +21,6 @@ export interface RouteLine {
 
 type LeafletNS = typeof import("leaflet");
 type LMap = import("leaflet").Map;
-type LCircle = import("leaflet").CircleMarker;
 type LPoly = import("leaflet").Polyline;
 type LMarker = import("leaflet").Marker;
 
@@ -115,7 +115,7 @@ export function LiveMapCanvas({
   const stationLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const labelLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const trainLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
-  const trainMarkers = useRef(new Map<string, LCircle>());
+  const trainMarkers = useRef(new Map<string, LMarker>());
   const routeLines = useRef(new Map<string, { casing: LPoly; main: LPoly }>());
   const highlightRef = useRef<LMarker | null>(null);
   const baseTileRef = useRef<import("leaflet").TileLayer | null>(null);
@@ -349,15 +349,16 @@ export function LiveMapCanvas({
       const [plat, plng] = snapToLine(t.line, t.position.lat, t.position.lng);
       const latlng: [number, number] = [plat, plng];
       const isHot = selected === t.trainId || hovered === t.trainId;
+      const size = isHot ? 34 : 28;
+      const icon = L.divIcon({
+        className: `rl-train-marker${isHot ? " rl-train-marker-hot" : ""}`,
+        html: `<span style="--marker-stroke:${stroke}">${trainIconSvg(t.operator, color)}</span>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
       let m = trainMarkers.current.get(t.trainId);
       if (!m) {
-        m = L.circleMarker(latlng, {
-          radius: 5,
-          color: stroke,
-          weight: 1.5,
-          fillColor: color,
-          fillOpacity: 1,
-        });
+        m = L.marker(latlng, { icon, keyboard: true, title: `${t.trainName} KA ${t.trainNumber}` });
         m.on("click", () => onSelect(t.trainId));
         m.on("mouseover", () => onHover(t.trainId));
         m.on("mouseout", () => onHover(null));
@@ -365,9 +366,8 @@ export function LiveMapCanvas({
         trainMarkers.current.set(t.trainId, m);
       } else {
         m.setLatLng(latlng);
-        m.setStyle({ fillColor: color, color: stroke });
+        m.setIcon(icon);
       }
-      m.setRadius(isHot ? 8 : 5);
       m.bindTooltip(
         `<b>${esc(t.trainName)}</b><br/>${esc(t.lastStationName)} → ${esc(t.nextStationName ?? "stasiun akhir")}` +
           (t.delayMin > 0 ? `<br/>Terlambat +${t.delayMin} menit` : ""),
