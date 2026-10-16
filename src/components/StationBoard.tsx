@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StationPicker } from "@/components/StationPicker";
 import { LineBadge, OperatorBadge, StatusBadge } from "@/components/Badges";
+import { nearestStationCode } from "@/lib/nearestStation";
 import { useClock, useLivePolling } from "@/lib/useLivePolling";
 import { KRL_LINE_ORDER, LINE_META, type Departure, type Station } from "@/lib/types";
 
@@ -21,12 +22,26 @@ const OP_FILTERS = [
 ] as const;
 
 export function StationBoard({ stations }: { stations: Station[] }) {
-  // Default ke stasiun KRL (Manggarai) supaya papan langsung terisi.
+  // Manggarai menjadi fallback bila geolokasi tidak tersedia atau ditolak.
   const [station, setStation] = useState("MRI");
+  const manuallySelected = useRef(false);
   const [window_, setWindow] = useState(240);
   const [opFilter, setOpFilter] = useState<(typeof OP_FILTERS)[number]["id"]>("all");
   const [lineFilter, setLineFilter] = useState<string>("all");
   const now = useClock();
+
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (manuallySelected.current) return;
+        const nearest = nearestStationCode(stations, coords.latitude, coords.longitude);
+        if (nearest) setStation(nearest);
+      },
+      () => undefined,
+      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 8_000 },
+    );
+  }, [stations]);
 
   const path = useMemo(
     () => `/api/departures?station=${station}&window=${window_}`,
@@ -67,6 +82,7 @@ export function StationBoard({ stations }: { stations: Station[] }) {
             stations={stations}
             value={station}
             onChange={(c) => {
+              manuallySelected.current = true;
               setStation(c);
               setLineFilter("all");
             }}
